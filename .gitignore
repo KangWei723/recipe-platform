@@ -1,0 +1,39 @@
+# Build output
+bin/
+obj/
+out/
+publish/
+*.pdb
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# VS Code
+.vscode/
+
+# Test results
+TestResults/
+*.trx
+
+# NuGet
+*.nupkg
+packages/
+.nuget/
+
+# User secrets / local overrides (never commit real secrets)
+**/appsettings.*.local.json
+**/appsettings.Local.json
+*.env
+.env
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

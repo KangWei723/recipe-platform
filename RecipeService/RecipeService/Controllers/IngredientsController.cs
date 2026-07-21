@@ -1,0 +1,30 @@
+using Microsoft.AspNetCore.Mvc;
+using RecipeService.Dtos;
+using RecipeService.Services;
+
+namespace RecipeService.Controllers;
+
+[ApiController]
+[Route("api/ingredients")]
+public class IngredientsController(IIngredientsService service, ISubstitutionsService substitutionsService)
+    : ControllerBase
+{
+    [HttpGet]
+    public async Task<ActionResult<List<IngredientResponse>>> GetAll() =>
+        Ok(await service.GetAllAsync());
+
+    [HttpGet("{id:long}")]
+    public async Task<ActionResult<IngredientResponse>> GetById(long id) =>
+        Ok(await service.GetByIdAsync(id));
+
+    [HttpPost]
+    public async Task<ActionResult<IngredientResponse>> Create([FromBody] CreateIngredientRequest request)
+    {
+        var created = await service.CreateAsync(request);
+        return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+    }
+
+    [HttpGet("{id:long}/substitutes")]
+    public async Task<ActionResult<List<SubstitutionResponse>>> GetSubstitutes(long id) =>
+        Ok(await substitutionsService.GetForIngredientAsync(id));
+}

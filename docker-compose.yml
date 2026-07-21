@@ -1,0 +1,67 @@
+services:
+  recipe-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: recipe_db
+      POSTGRES_USER: recipe_user
+      POSTGRES_PASSWORD: recipe_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - recipe-db-data:/var/lib/postgresql/data
+      - ./RecipeService/init-db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U recipe_user -d recipe_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  pantry-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: pantry_db
+      POSTGRES_USER: pantry_user
+      POSTGRES_PASSWORD: pantry_pass
+    ports:
+      - "5434:5432"
+    volumes:
+      - pantry-db-data:/var/lib/postgresql/data
+      - ./PantryService/init-db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pantry_user -d pantry_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  recipe-service:
+    build:
+      context: .
+      dockerfile: RecipeService/RecipeService/Dockerfile
+    ports:
+      - "5081:8080"
+    environment:
+      ConnectionStrings__RecipeDb: "Host=recipe-db;Port=5432;Database=recipe_db;Username=recipe_user;Password=recipe_pass"
+      ASPNETCORE_ENVIRONMENT: Development
+    depends_on:
+      recipe-db:
+        condition: service_healthy
+
+  pantry-service:
+    build:
+      context: .
+      dockerfile: PantryService/PantryService/Dockerfile
+    ports:
+      - "5082:8080"
+    environment:
+      ConnectionStrings__PantryDb: "Host=pantry-db;Port=5432;Database=pantry_db;Username=pantry_user;Password=pantry_pass"
+      RecipeService__BaseUrl: "http://recipe-service:8080"
+      ASPNETCORE_ENVIRONMENT: Development
+    depends_on:
+      pantry-db:
+        condition: service_healthy
+      recipe-service:
+        condition: service_started
+
+volumes:
+  recipe-db-data:
+  pantry-db-data:
