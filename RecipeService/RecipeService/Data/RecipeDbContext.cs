@@ -10,7 +10,6 @@ public class RecipeDbContext(DbContextOptions<RecipeDbContext> options) : DbCont
     public DbSet<Recipe> Recipes => Set<Recipe>();
     public DbSet<RecipeStep> RecipeSteps => Set<RecipeStep>();
     public DbSet<RecipeIngredient> RecipeIngredients => Set<RecipeIngredient>();
-    public DbSet<IngredientSubstitution> IngredientSubstitutions => Set<IngredientSubstitution>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -84,26 +83,6 @@ public class RecipeDbContext(DbContextOptions<RecipeDbContext> options) : DbCont
             entity.HasOne(e => e.Ingredient)
                 .WithMany()
                 .HasForeignKey(e => e.IngredientId);
-        });
-
-        modelBuilder.Entity<IngredientSubstitution>(entity =>
-        {
-            entity.ToTable("ingredient_substitutions");
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.IngredientId).HasColumnName("ingredient_id");
-            entity.Property(e => e.SubstituteId).HasColumnName("substitute_id");
-            entity.Property(e => e.Ratio).HasColumnName("ratio").HasColumnType("numeric(10,4)");
-            entity.Property(e => e.Context).HasColumnName("context");
-
-            entity.HasOne(e => e.Ingredient)
-                .WithMany()
-                .HasForeignKey(e => e.IngredientId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(e => e.Substitute)
-                .WithMany()
-                .HasForeignKey(e => e.SubstituteId)
-                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

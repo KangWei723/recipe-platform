@@ -6,8 +6,7 @@ namespace RecipeService.Controllers;
 
 [ApiController]
 [Route("api/ingredients")]
-public class IngredientsController(IIngredientsService service, ISubstitutionsService substitutionsService)
-    : ControllerBase
+public class IngredientsController(IIngredientsService service) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<List<IngredientResponse>>> GetAll() =>
@@ -23,8 +22,4 @@ public class IngredientsController(IIngredientsService service, ISubstitutionsSe
         var created = await service.CreateAsync(request);
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
-
-    [HttpGet("{id:long}/substitutes")]
-    public async Task<ActionResult<List<SubstitutionResponse>>> GetSubstitutes(long id) =>
-        Ok(await substitutionsService.GetForIngredientAsync(id));
 }

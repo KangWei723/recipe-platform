@@ -50,18 +50,3 @@ CREATE TABLE recipe_ingredients (
 
 CREATE INDEX idx_recipe_ingredients_recipe_id ON recipe_ingredients (recipe_id);
 CREATE INDEX idx_recipe_ingredients_ingredient_id ON recipe_ingredients (ingredient_id);
-
--- Phase 1 "open decision" from docs/design.md: substitution logic starts as
--- a plain relational lookup table here, and migrates to the Neo4j graph
--- (directional, weighted, context-aware edges) owned by a standalone
--- Substitution service in Phase 2.
-CREATE TABLE ingredient_substitutions (
-    id BIGSERIAL PRIMARY KEY,
-    ingredient_id BIGINT NOT NULL REFERENCES ingredients (id),
-    substitute_id BIGINT NOT NULL REFERENCES ingredients (id),
-    ratio NUMERIC(10, 4) NOT NULL DEFAULT 1.0,
-    context VARCHAR(100),
-    CHECK (ingredient_id <> substitute_id)
-);
-
-CREATE INDEX idx_ingredient_substitutions_ingredient_id ON ingredient_substitutions (ingredient_id);

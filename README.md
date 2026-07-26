@@ -4,8 +4,7 @@ MVP slice of the architecture described in [`docs/design.md`](docs/design.md): t
 deployable services, each owning its own Postgres database, talking to each other over HTTP —
 no shared schema, no cross-service SQL joins.
 
-- **RecipeService** (`:5081`) — recipes, steps, ingredient catalog, and a plain-lookup-table
-  substitution list (`ingredient_substitutions`). Owns `recipe_db`.
+- **RecipeService** (`:5081`) — recipes, steps, ingredient catalog. Owns `recipe_db`.
 - **PantryService** (`:5082`) — per-user pantry inventory. Owns `pantry_db`. Resolves ingredient
   names and recipe contents by calling RecipeService's REST API (see
   `PantryService/PantryService/Client/RecipeServiceClient.cs`), never by joining across databases.
@@ -83,9 +82,6 @@ they need a reachable Docker daemon.
 
 ## Known Phase 1 simplifications
 
-- `ingredient_substitutions` is a plain relational table (by design — see the "Open decision" in
-  `docs/design.md`); it's exposed via `GET /api/ingredients/{id}/substitutes` but not yet wired
-  into the missing-ingredients flow.
 - The missing-ingredients diff compares quantities directly with no unit conversion — it assumes
   the pantry item's unit matches the recipe's.
 - No auth/authz yet; `userId`/`authorId` are passed as plain path/body values.
