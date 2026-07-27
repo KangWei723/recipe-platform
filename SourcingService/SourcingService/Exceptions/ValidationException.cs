@@ -1,0 +1,3 @@
+namespace SourcingService.Exceptions;
+
+public class ValidationException(string message) : Exception(message);
