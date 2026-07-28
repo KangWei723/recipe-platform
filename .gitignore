@@ -34,6 +34,9 @@ packages/
 # Logs
 *.log
 
+# start-all.ps1 / stop-all.ps1 runtime state
+.start-all-pids.txt
+
 # OS
 .DS_Store
 Thumbs.db
