@@ -27,6 +27,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Gateway", "Gateway", "{6036
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gateway", "Gateway\Gateway\Gateway.csproj", "{38758350-767C-46AC-B143-7087F1B0E008}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Observability", "Observability\Observability.csproj", "{6C79BDBE-B0FC-4572-9F2C-67553A778630}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -64,6 +66,10 @@ Global
 		{38758350-767C-46AC-B143-7087F1B0E008}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{38758350-767C-46AC-B143-7087F1B0E008}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{38758350-767C-46AC-B143-7087F1B0E008}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6C79BDBE-B0FC-4572-9F2C-67553A778630}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6C79BDBE-B0FC-4572-9F2C-67553A778630}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6C79BDBE-B0FC-4572-9F2C-67553A778630}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6C79BDBE-B0FC-4572-9F2C-67553A778630}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{ADEFF2AB-3035-4C79-96F3-C83BE9C00DE6} = {4D50AF06-29E6-4050-9DDA-FC82E5C2A5FA}

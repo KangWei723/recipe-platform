@@ -1,11 +1,15 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
+using Observability;
+using OpenTelemetry.Trace;
 using RecipeService.Data;
 using RecipeService.Exceptions;
 using RecipeService.Repositories;
 using RecipeService.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.AddObservability("recipe-service", tracing => tracing.AddEntityFrameworkCoreInstrumentation());
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

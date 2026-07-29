@@ -1,11 +1,14 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Neo4j.Driver;
+using Observability;
 using SubstitutionService.Data;
 using SubstitutionService.Exceptions;
 using SubstitutionService.Repositories;
 using SubstitutionService.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.AddObservability("substitution-service");
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

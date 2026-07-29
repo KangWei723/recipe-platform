@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.Extensions.Options;
+using Observability;
 using SourcingService.Exceptions;
 using SourcingService.Providers;
 using SourcingService.Providers.GooglePlaces;
@@ -8,6 +9,8 @@ using SourcingService.Providers.Mock;
 using SourcingService.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.AddObservability("sourcing-service");
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

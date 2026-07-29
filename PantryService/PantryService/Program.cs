@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
+using Observability;
+using OpenTelemetry.Trace;
 using PantryService.Client;
 using PantryService.Data;
 using PantryService.Exceptions;
@@ -7,6 +9,8 @@ using PantryService.Repositories;
 using PantryService.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.AddObservability("pantry-service", tracing => tracing.AddEntityFrameworkCoreInstrumentation());
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

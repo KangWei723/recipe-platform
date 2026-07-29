@@ -1,7 +1,10 @@
 using Gateway.Client;
 using Gateway.GraphQL;
+using Observability;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.AddObservability("gateway");
 
 builder.Services.AddGateway();
 
