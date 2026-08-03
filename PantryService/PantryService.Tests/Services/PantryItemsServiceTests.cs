@@ -1,4 +1,6 @@
 using FluentAssertions;
+using Messaging;
+using Microsoft.Extensions.Logging;
 using Moq;
 using PantryService.Client;
 using PantryService.Domain;
@@ -14,11 +16,16 @@ public class PantryItemsServiceTests
 {
     private readonly Mock<IPantryItemRepository> _repository = new();
     private readonly Mock<IRecipeServiceClient> _recipeClient = new();
+    private readonly Mock<IQStashPublisher> _qstashPublisher = new();
     private readonly PantryItemsService _service;
 
     public PantryItemsServiceTests()
     {
-        _service = new PantryItemsService(_repository.Object, _recipeClient.Object);
+        _service = new PantryItemsService(
+            _repository.Object,
+            _recipeClient.Object,
+            _qstashPublisher.Object,
+            new Mock<ILogger<PantryItemsService>>().Object);
     }
 
     [Fact]

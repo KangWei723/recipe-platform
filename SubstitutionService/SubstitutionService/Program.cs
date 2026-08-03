@@ -1,3 +1,4 @@
+using Messaging;
 using Microsoft.AspNetCore.Diagnostics;
 using Neo4j.Driver;
 using Observability;
@@ -8,7 +9,10 @@ using SubstitutionService.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.AddObservability("substitution-service");
+builder.AddObservability("substitution-service", tracing => tracing
+    .AddSource(QStashInstrumentation.ActivitySourceName));
+
+builder.Services.Configure<QStashOptions>(builder.Configuration.GetSection("QStash"));
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

@@ -1,3 +1,4 @@
+using Messaging;
 using PantryService.Client;
 using PantryService.Domain;
 using PantryService.Dtos;
@@ -8,7 +9,9 @@ namespace PantryService.Services;
 
 public class PantryItemsService(
     IPantryItemRepository repository,
-    IRecipeServiceClient recipeServiceClient) : IPantryItemsService
+    IRecipeServiceClient recipeServiceClient,
+    IQStashPublisher qstashPublisher,
+    ILogger<PantryItemsService> logger) : IPantryItemsService
 {
     public async Task<List<PantryItemResponse>> GetForUserAsync(long userId)
     {
@@ -56,7 +59,38 @@ public class PantryItemsService(
                 ri.Unit))
             .ToList();
 
+        await PublishMissingIngredientEventsAsync(userId, recipe.Id, missing);
+
         return new MissingIngredientsResponse(recipe.Id, recipe.Title, missing);
+    }
+
+    // The decoupled event side-channel: consumers (Substitution, Sourcing) act on this
+    // asynchronously. A QStash outage must not break the synchronous response above, so
+    // publish failures are logged and swallowed rather than propagated.
+    private async Task PublishMissingIngredientEventsAsync(
+        long userId, long recipeId, List<MissingIngredientResponse> missing)
+    {
+        foreach (var item in missing)
+        {
+            try
+            {
+                await qstashPublisher.PublishAsync(QStashTopics.IngredientMissing, new IngredientMissingEvent(
+                    userId,
+                    recipeId,
+                    item.IngredientId,
+                    item.IngredientName,
+                    item.RequiredQuantity,
+                    item.AvailableQuantity,
+                    item.Unit,
+                    DateTimeOffset.UtcNow));
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex,
+                    "Failed to publish ingredient.missing event for ingredient {IngredientId} (user {UserId}, recipe {RecipeId})",
+                    item.IngredientId, userId, recipeId);
+            }
+        }
     }
 
     private async Task<Dictionary<long, string>> FetchIngredientNamesAsync(IEnumerable<long> ingredientIds)

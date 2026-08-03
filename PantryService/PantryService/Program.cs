@@ -1,3 +1,4 @@
+using Messaging;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Observability;
@@ -10,7 +11,9 @@ using PantryService.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.AddObservability("pantry-service", tracing => tracing.AddEntityFrameworkCoreInstrumentation());
+builder.AddObservability("pantry-service", tracing => tracing
+    .AddEntityFrameworkCoreInstrumentation()
+    .AddSource(QStashInstrumentation.ActivitySourceName));
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -33,6 +36,9 @@ builder.Services
         client.BaseAddress = new Uri(baseUrl);
     })
     .AddStandardResilienceHandler();
+
+builder.Services.Configure<QStashOptions>(builder.Configuration.GetSection("QStash"));
+builder.Services.AddHttpClient<IQStashPublisher, QStashPublisher>();
 
 var app = builder.Build();
 
@@ -70,6 +76,26 @@ if (app.Environment.IsDevelopment())
 
 app.MapHealthChecks("/actuator/health");
 app.MapControllers();
+
+var qstashConsumers = app.Configuration.GetSection("QStash:Consumers").GetChildren()
+    .Where(c => !string.IsNullOrEmpty(c.Value))
+    .Select(c => (Name: c.Key, Url: c.Value!))
+    .ToList();
+
+if (qstashConsumers.Count > 0)
+{
+    try
+    {
+        var publisher = app.Services.GetRequiredService<IQStashPublisher>();
+        await publisher.EnsureUrlGroupAsync(QStashTopics.IngredientMissing, qstashConsumers);
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex,
+            "Failed to register QStash url group '{UrlGroup}' at startup — is the QStash server at {BaseUrl} reachable?",
+            QStashTopics.IngredientMissing, app.Configuration["QStash:BaseUrl"]);
+    }
+}
 
 app.Run();
 
