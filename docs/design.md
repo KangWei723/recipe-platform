@@ -4,6 +4,33 @@
 
 Solo portfolio project built to demonstrate distributed systems, microservices, API design, concurrency, observability, and event-driven/workflow-orchestration skills for backend engineering roles. The product surface (a recipe app with ingredient substitution and "find it nearby" sourcing) is the vehicle; the architecture is the point.
 
+## Production usage shift (2026-08-04)
+
+**Read this before making further architectural decisions.**
+
+The goal has expanded beyond a portfolio demo: a small group of real users will actually use this app. That changes what matters, on top of the qualification-mapping goals below:
+
+- **Real auth is now required** — see the audit below; none currently exists.
+- **Real data isolation between users is now required** — not just a schema column.
+- **Reliability now matters** for its own sake, not just as something to demonstrate.
+
+**Production deployment target:** Render, for the .NET services. Kroger's Production API is now available as a deployment target alongside the Certification environment, which remains what local dev points at (see flag #5 below — the code currently only knows about Certification).
+
+**Decision — local dev/demo keeps the full distributed architecture; production is simplified:**
+- Neo4j (substitution graph) ships to production, not simplified away.
+- QStash and the full observability stack (OpenTelemetry/Jaeger/Prometheus/Grafana) stay **dev-only** and do not run in production.
+
+**Flag — this is in tension with "reliability now matters":** dropping the observability stack from production means zero tracing/metrics visibility into real user-facing incidents, which is the exact thing reliability work depends on. Worth revisiting before launch: at minimum, structured logs plus some production-friendly uptime/error-rate signal (e.g. a hosted logging/APM tier, even a lightweight one) probably needs to exist in prod, even though the full local Jaeger/Prometheus/Grafana stack doesn't come along.
+
+**What was already built assuming "demo only," audited against the current code, and needing reconsideration now:**
+
+1. **No authentication exists anywhere in the platform.** No `[Authorize]` attributes, no `UseAuthentication()`/`UseAuthorization()`, no auth-related packages, in any of the five services. `Gateway/Gateway/Program.cs` has an explicit comment acknowledging this while justifying a permissive dev CORS policy. This is the largest gap for real users and should be the first thing addressed.
+2. **PantryService's per-user isolation is enforced at the query level but not at the identity level.** `PantryItemRepository` correctly scopes every query by `userId`, and the schema has a real index/constraint on it — but the route is `api/pantry/users/{userId}`, an unauthenticated path parameter. Any client can currently read, write, or delete any other user's pantry just by changing the URL. Real auth has to land before this is safe for real users, not just the existing query-level filtering.
+3. **Only RecipeService has a `users` table**, and no service reads identity from a JWT claim, session, or header anywhere in the codebase — "current user" is always just a caller-supplied number. Introducing auth means introducing a real identity source that every service trusts consistently, not just RecipeService.
+4. **The QStash `ingredient.missing` event carries a `UserId` field, but it's inert.** Both SourcingService's and SubstitutionService's webhook handlers only log it — there's no per-user scoping of downstream action yet, since both handlers are still stubs. This will matter once they do real work.
+5. ~~**Kroger integration currently targets the Certification environment** with Certification credentials only.~~ **Resolved 2026-08-04**: `KrogerOptions` now has a `Kroger:Environment` switch (`Certification`/`Production`), each with its own `BaseUrl`/`ClientId`/`ClientSecret`. Local dev defaults to Certification (`api-ce.kroger.com`); Render's production deployment sets `Kroger__Environment=Production` plus `Kroger__Production__ClientId`/`ClientSecret` as env vars. Verified end-to-end against the real `api.kroger.com` Production API (token refresh, location lookup, and product search all succeeded, real store/prices returned).
+6. **Gateway CORS is deliberately permissive** ("dev-friendly," per its own code comment) — needs a real allowlist before it's exposed to external users.
+
 ## Qualification → architecture mapping
 
 | Requirement | Where it shows up |
