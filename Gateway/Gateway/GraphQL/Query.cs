@@ -9,9 +9,11 @@ public class Query
     // Core query: recipe + ingredients + pantry status, resolved together so
     // a single upstream call to pantry-service's missing-ingredients check
     // covers every ingredient instead of one pantry lookup per ingredient.
+    // No userId argument: pantry-service resolves "whose pantry" from the caller's own
+    // forwarded bearer token, not from a client-supplied value (that used to let any caller
+    // read anyone's pantry just by passing a different id here).
     public async Task<Recipe?> GetRecipeAsync(
         long id,
-        long userId,
         [Service] IRecipeServiceClient recipeClient,
         [Service] IPantryServiceClient pantryClient,
         CancellationToken cancellationToken)
@@ -22,7 +24,7 @@ public class Query
             return null;
         }
 
-        var missing = await pantryClient.GetMissingIngredientsAsync(userId, id, cancellationToken);
+        var missing = await pantryClient.GetMissingIngredientsAsync(id, cancellationToken);
         var missingIngredientIds = missing.MissingIngredients
             .Select(m => m.IngredientId)
             .ToHashSet();

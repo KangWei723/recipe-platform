@@ -1,3 +1,4 @@
+using Auth;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Observability;
@@ -10,6 +11,7 @@ using RecipeService.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddObservability("recipe-service", tracing => tracing.AddEntityFrameworkCoreInstrumentation());
+builder.AddAuth0Authentication();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -62,7 +64,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.MapHealthChecks("/actuator/health");
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapHealthChecks("/actuator/health").AllowAnonymous();
 app.MapControllers();
 
 app.Run();

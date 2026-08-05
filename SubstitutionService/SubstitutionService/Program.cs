@@ -1,3 +1,4 @@
+using Auth;
 using Messaging;
 using Microsoft.AspNetCore.Diagnostics;
 using Neo4j.Driver;
@@ -11,6 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddObservability("substitution-service", tracing => tracing
     .AddSource(QStashInstrumentation.ActivitySourceName));
+builder.AddAuth0Authentication();
 
 builder.Services.Configure<QStashOptions>(builder.Configuration.GetSection("QStash"));
 
@@ -64,7 +66,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.MapHealthChecks("/actuator/health");
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapHealthChecks("/actuator/health").AllowAnonymous();
 app.MapControllers();
 
 app.Run();

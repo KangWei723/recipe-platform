@@ -4,6 +4,7 @@
 
 CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
+    auth0_sub VARCHAR(255) UNIQUE,
     email VARCHAR(255) NOT NULL UNIQUE,
     name VARCHAR(255) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()

@@ -9,6 +9,9 @@ public class UserRepository(RecipeDbContext context) : IUserRepository
     public Task<User?> GetByIdAsync(long id) =>
         context.Users.FirstOrDefaultAsync(u => u.Id == id);
 
+    public Task<User?> GetByAuthSubAsync(string authSub) =>
+        context.Users.FirstOrDefaultAsync(u => u.AuthSub == authSub);
+
     public Task<List<User>> GetAllAsync() =>
         context.Users.OrderBy(u => u.Id).ToListAsync();
 

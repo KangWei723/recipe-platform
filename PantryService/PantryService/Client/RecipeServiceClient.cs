@@ -34,11 +34,22 @@ public class RecipeServiceClient(HttpClient httpClient) : IRecipeServiceClient
         return await ReadOrThrowAsync<RecipeDetailDto>(response, cancellationToken);
     }
 
-    private async Task<HttpResponseMessage> SendAsync(string requestUri, CancellationToken cancellationToken)
+    public async Task<UserDto> ResolveCurrentUserAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await SendAsync(HttpMethod.Post, "/api/users/me", cancellationToken);
+        return await ReadOrThrowAsync<UserDto>(response, cancellationToken);
+    }
+
+    private Task<HttpResponseMessage> SendAsync(string requestUri, CancellationToken cancellationToken) =>
+        SendAsync(HttpMethod.Get, requestUri, cancellationToken);
+
+    private async Task<HttpResponseMessage> SendAsync(
+        HttpMethod method, string requestUri, CancellationToken cancellationToken)
     {
         try
         {
-            return await httpClient.GetAsync(requestUri, cancellationToken);
+            using var request = new HttpRequestMessage(method, requestUri);
+            return await httpClient.SendAsync(request, cancellationToken);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {

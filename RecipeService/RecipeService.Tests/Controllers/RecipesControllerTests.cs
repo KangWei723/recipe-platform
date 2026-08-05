@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using RecipeService.Controllers;
@@ -12,11 +14,21 @@ namespace RecipeService.Tests.Controllers;
 public class RecipesControllerTests
 {
     private readonly Mock<IRecipesService> _service = new();
+    private readonly Mock<IUsersService> _usersService = new();
     private readonly RecipesController _controller;
 
     public RecipesControllerTests()
     {
-        _controller = new RecipesController(_service.Object);
+        _controller = new RecipesController(_service.Object, _usersService.Object)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "auth0|test-user")], "TestAuth"))
+                }
+            }
+        };
     }
 
     [Fact]
@@ -33,7 +45,6 @@ public class RecipesControllerTests
     public async Task Create_ReturnsCreatedAtActionWithDetail()
     {
         var request = new CreateRecipeRequest(
-            AuthorId: 1,
             Title: "Weeknight Pasta",
             Description: "Fast and simple",
             Servings: 2,
@@ -58,7 +69,9 @@ public class RecipesControllerTests
             Ingredients: [new RecipeIngredientResponse(1, 5, "Pasta", 200, "g", false)]
         );
 
-        _service.Setup(s => s.CreateAsync(request)).ReturnsAsync(detail);
+        _usersService.Setup(s => s.ResolveCurrentUserAsync(It.IsAny<ClaimsPrincipal>()))
+            .ReturnsAsync(new UserResponse(1, "author@example.com", "Author", DateTimeOffset.UtcNow));
+        _service.Setup(s => s.CreateAsync(request, 1)).ReturnsAsync(detail);
 
         var result = await _controller.Create(request);
 

@@ -1,3 +1,4 @@
+using Auth;
 using Gateway.Client;
 using Gateway.GraphQL;
 using Observability;
@@ -8,6 +9,14 @@ builder.AddObservability("gateway");
 
 builder.Services.AddGateway();
 
+// Gateway itself doesn't validate the caller's JWT -- it's a pure aggregator with no
+// per-request business logic of its own. Each backend service (which does have
+// AddAuth0Authentication wired in) enforces auth on the forwarded request instead. What
+// Gateway must do is forward the original Authorization header onto every downstream call,
+// or those calls would arrive anonymous and get rejected.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddTransient<AuthHeaderForwardingHandler>();
+
 builder.Services
     .AddHttpClient<IRecipeServiceClient, RecipeServiceClient>(client =>
     {
@@ -15,6 +24,7 @@ builder.Services
             ?? throw new InvalidOperationException("RecipeService:BaseUrl is not configured");
         client.BaseAddress = new Uri(baseUrl);
     })
+    .AddHttpMessageHandler<AuthHeaderForwardingHandler>()
     .AddStandardResilienceHandler();
 
 builder.Services
@@ -24,6 +34,7 @@ builder.Services
             ?? throw new InvalidOperationException("PantryService:BaseUrl is not configured");
         client.BaseAddress = new Uri(baseUrl);
     })
+    .AddHttpMessageHandler<AuthHeaderForwardingHandler>()
     .AddStandardResilienceHandler();
 
 builder.Services
@@ -33,6 +44,7 @@ builder.Services
             ?? throw new InvalidOperationException("SubstitutionService:BaseUrl is not configured");
         client.BaseAddress = new Uri(baseUrl);
     })
+    .AddHttpMessageHandler<AuthHeaderForwardingHandler>()
     .AddStandardResilienceHandler();
 
 builder.Services
@@ -42,17 +54,20 @@ builder.Services
             ?? throw new InvalidOperationException("SourcingService:BaseUrl is not configured");
         client.BaseAddress = new Uri(baseUrl);
     })
+    .AddHttpMessageHandler<AuthHeaderForwardingHandler>()
     .AddStandardResilienceHandler();
 
 builder.Services.AddHealthChecks();
 
-// No auth exists anywhere in the platform yet (see docs/design.md Phase 1
-// scope), so this is a permissive dev-friendly policy rather than a
-// locked-down one. Revisit once the client app's origin is known.
+// Real auth exists now (see docs/design.md's "Production usage shift" section) -- origins
+// are an explicit config-driven allowlist rather than the old AllowAnyOrigin dev placeholder.
+// No frontend app exists in this repo yet, so the default only covers common local SPA dev
+// ports; add the real deployed origin(s) to Cors:AllowedOrigins once that app exists.
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy => policy
-        .AllowAnyOrigin()
+        .WithOrigins(allowedOrigins)
         .AllowAnyMethod()
         .AllowAnyHeader());
 });

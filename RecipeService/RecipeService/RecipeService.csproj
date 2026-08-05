@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Observability\Observability.csproj" />
+    <ProjectReference Include="..\..\Auth\Auth.csproj" />
   </ItemGroup>
 
 </Project>

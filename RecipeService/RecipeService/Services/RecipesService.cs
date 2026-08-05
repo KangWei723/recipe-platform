@@ -23,10 +23,10 @@ public class RecipesService(
         return recipes.Select(ToSummaryResponse).ToList();
     }
 
-    public async Task<RecipeDetailResponse> CreateAsync(CreateRecipeRequest request)
+    public async Task<RecipeDetailResponse> CreateAsync(CreateRecipeRequest request, long authorId)
     {
-        var author = await userRepository.GetByIdAsync(request.AuthorId)
-            ?? throw new ValidationException($"Author {request.AuthorId} does not exist");
+        var author = await userRepository.GetByIdAsync(authorId)
+            ?? throw new ValidationException($"Author {authorId} does not exist");
 
         var ingredientIds = request.Ingredients.Select(i => i.IngredientId).Distinct().ToList();
         var existingIngredients = await ingredientRepository.GetByIdsAsync(ingredientIds);

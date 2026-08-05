@@ -12,9 +12,9 @@ public class PantryServiceClient(HttpClient httpClient) : IPantryServiceClient
     };
 
     public async Task<MissingIngredientsDto> GetMissingIngredientsAsync(
-        long userId, long recipeId, CancellationToken cancellationToken = default)
+        long recipeId, CancellationToken cancellationToken = default)
     {
-        var requestUri = $"/api/pantry/users/{userId}/recipes/{recipeId}/missing-ingredients";
+        var requestUri = $"/api/pantry/recipes/{recipeId}/missing-ingredients";
 
         HttpResponseMessage response;
         try

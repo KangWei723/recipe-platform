@@ -8,6 +8,8 @@ namespace PantryService.Client;
 
 public record IngredientDto(long Id, string Name, string? Category, string DefaultUnit);
 
+public record UserDto(long Id, string Email, string Name);
+
 public record RecipeIngredientDto(
     long Id,
     long IngredientId,

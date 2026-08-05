@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RecipeService.Dtos;
 using RecipeService.Services;
@@ -5,6 +6,7 @@ using RecipeService.Services;
 namespace RecipeService.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/ingredients")]
 public class IngredientsController(IIngredientsService service) : ControllerBase
 {

@@ -17,9 +17,11 @@ public class RecipeDbContext(DbContextOptions<RecipeDbContext> options) : DbCont
         {
             entity.ToTable("users");
             entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AuthSub).HasColumnName("auth0_sub");
             entity.Property(e => e.Email).HasColumnName("email");
             entity.Property(e => e.Name).HasColumnName("name");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(e => e.AuthSub).IsUnique();
         });
 
         modelBuilder.Entity<Ingredient>(entity =>

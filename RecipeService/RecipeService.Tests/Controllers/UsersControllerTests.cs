@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using RecipeService.Controllers;
@@ -15,7 +17,16 @@ public class UsersControllerTests
 
     public UsersControllerTests()
     {
-        _controller = new UsersController(_service.Object);
+        _controller = new UsersController(_service.Object)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "auth0|test-user")], "TestAuth"))
+                }
+            }
+        };
     }
 
     [Fact]
@@ -42,5 +53,17 @@ public class UsersControllerTests
         var createdResult = result.Result.Should().BeOfType<CreatedAtActionResult>().Subject;
         createdResult.Value.Should().BeEquivalentTo(created);
         createdResult.ActionName.Should().Be(nameof(UsersController.GetById));
+    }
+
+    [Fact]
+    public async Task Me_ResolvesCurrentUserFromValidatedPrincipal()
+    {
+        var expected = new UserResponse(7, "ada@example.com", "Ada Lovelace", DateTimeOffset.UtcNow);
+        _service.Setup(s => s.ResolveCurrentUserAsync(_controller.User)).ReturnsAsync(expected);
+
+        var result = await _controller.Me();
+
+        var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.Value.Should().BeEquivalentTo(expected);
     }
 }

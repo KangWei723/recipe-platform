@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SubstitutionService.Dtos;
 using SubstitutionService.Services;
@@ -5,6 +6,7 @@ using SubstitutionService.Services;
 namespace SubstitutionService.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/substitutions")]
 public class SubstitutionsController(ISubstitutionsService service) : ControllerBase
 {

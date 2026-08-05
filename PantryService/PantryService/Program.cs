@@ -1,8 +1,10 @@
+using Auth;
 using Messaging;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Observability;
 using OpenTelemetry.Trace;
+using PantryService.Auth;
 using PantryService.Client;
 using PantryService.Data;
 using PantryService.Exceptions;
@@ -14,6 +16,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddObservability("pantry-service", tracing => tracing
     .AddEntityFrameworkCoreInstrumentation()
     .AddSource(QStashInstrumentation.ActivitySourceName));
+builder.AddAuth0Authentication();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -28,6 +31,11 @@ builder.Services.AddHealthChecks()
 builder.Services.AddScoped<IPantryItemRepository, PantryItemRepository>();
 builder.Services.AddScoped<IPantryItemsService, PantryItemsService>();
 
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddTransient<AuthHeaderForwardingHandler>();
+builder.Services.AddSingleton<ICurrentUserCache, CurrentUserCache>();
+builder.Services.AddScoped<ICurrentUserResolver, CurrentUserResolver>();
+
 builder.Services
     .AddHttpClient<IRecipeServiceClient, RecipeServiceClient>(client =>
     {
@@ -35,6 +43,9 @@ builder.Services
             ?? throw new InvalidOperationException("RecipeService:BaseUrl is not configured");
         client.BaseAddress = new Uri(baseUrl);
     })
+    // Forwards this request's own bearer token to recipe-service so /api/users/me resolves
+    // the same caller, rather than calling as an anonymous/unrelated identity.
+    .AddHttpMessageHandler<AuthHeaderForwardingHandler>()
     .AddStandardResilienceHandler();
 
 builder.Services.Configure<QStashOptions>(builder.Configuration.GetSection("QStash"));
@@ -74,7 +85,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.MapHealthChecks("/actuator/health");
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapHealthChecks("/actuator/health").AllowAnonymous();
 app.MapControllers();
 
 var qstashConsumers = app.Configuration.GetSection("QStash:Consumers").GetChildren()

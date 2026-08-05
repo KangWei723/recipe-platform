@@ -16,7 +16,6 @@ public record CreateRecipeIngredientRequest(
 );
 
 public record CreateRecipeRequest(
-    [Required] long AuthorId,
     [Required, MaxLength(255)] string Title,
     string? Description,
     int? Servings,

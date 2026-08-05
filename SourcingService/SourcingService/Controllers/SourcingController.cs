@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SourcingService.Dtos;
 using SourcingService.Exceptions;
@@ -6,6 +7,7 @@ using SourcingService.Services;
 namespace SourcingService.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/sourcing")]
 public class SourcingController(ISourcingAggregatorService aggregatorService) : ControllerBase
 {

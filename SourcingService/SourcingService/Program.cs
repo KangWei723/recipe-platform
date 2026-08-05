@@ -1,3 +1,4 @@
+using Auth;
 using Messaging;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.Extensions.Options;
@@ -19,6 +20,7 @@ builder.AddObservability(
         .AddSource(QStashInstrumentation.ActivitySourceName)
         .AddSource(SourcingCacheInstrumentation.ActivitySourceName),
     metrics => metrics.AddMeter(SourcingCacheInstrumentation.MeterName));
+builder.AddAuth0Authentication();
 
 builder.Services.Configure<QStashOptions>(builder.Configuration.GetSection("QStash"));
 
@@ -114,7 +116,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.MapHealthChecks("/actuator/health");
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapHealthChecks("/actuator/health").AllowAnonymous();
 app.MapControllers();
 
 app.Run();
