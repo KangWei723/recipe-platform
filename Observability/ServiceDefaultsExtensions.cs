@@ -13,12 +13,14 @@ public static class ServiceDefaultsExtensions
     /// Wires ASP.NET Core + HttpClient auto-instrumentation (traces and metrics) plus
     /// .NET runtime metrics, exported via OTLP to the collector configured under
     /// OpenTelemetry:OtlpEndpoint (defaults to the local Jaeger OTLP/gRPC receiver).
-    /// Pass configureTracing to bolt on extra instrumentation (e.g. EF Core) per service.
+    /// Pass configureTracing/configureMetrics to bolt on extra instrumentation (e.g. EF Core,
+    /// a custom ActivitySource/Meter) per service.
     /// </summary>
     public static IHostApplicationBuilder AddObservability(
         this IHostApplicationBuilder builder,
         string serviceName,
-        Action<TracerProviderBuilder>? configureTracing = null)
+        Action<TracerProviderBuilder>? configureTracing = null,
+        Action<MeterProviderBuilder>? configureMetrics = null)
     {
         var otlpEndpoint = builder.Configuration["OpenTelemetry:OtlpEndpoint"] ?? "http://127.0.0.1:4317";
 
@@ -43,8 +45,11 @@ public static class ServiceDefaultsExtensions
                 metrics
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
-                    .AddRuntimeInstrumentation()
-                    .AddOtlpExporter(otlp => otlp.Endpoint = new Uri(otlpEndpoint));
+                    .AddRuntimeInstrumentation();
+
+                configureMetrics?.Invoke(metrics);
+
+                metrics.AddOtlpExporter(otlp => otlp.Endpoint = new Uri(otlpEndpoint));
             });
 
         return builder;

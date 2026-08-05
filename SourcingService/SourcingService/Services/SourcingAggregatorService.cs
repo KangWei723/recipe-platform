@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using SourcingService.Caching;
 using SourcingService.Dtos;
 using SourcingService.Providers;
 using SourcingService.Providers.Mock;
@@ -8,6 +9,7 @@ namespace SourcingService.Services;
 public class SourcingAggregatorService(
     IEnumerable<IStoreProvider> providers,
     MockStoreProvider mockProvider,
+    ISourcingCache cache,
     ILogger<SourcingAggregatorService> logger) : ISourcingAggregatorService
 {
     private static readonly TimeSpan ProviderTimeout = TimeSpan.FromSeconds(3);
@@ -15,6 +17,14 @@ public class SourcingAggregatorService(
     public async Task<NearbySourcingResponse> FindNearbyAsync(
         string ingredientName, double lat, double lng, CancellationToken cancellationToken)
     {
+        var cached = await cache.GetAsync(ingredientName, lat, lng, cancellationToken);
+        if (cached is not null)
+        {
+            // Cache hit: return immediately without racing the real providers at all.
+            var cacheDiagnostic = new ProviderDiagnostic("Cache", ProviderOutcome.Succeeded, 0, null);
+            return new NearbySourcingResponse(ingredientName, lat, lng, cached, [cacheDiagnostic]);
+        }
+
         // Every real provider is raced against its own timeout in parallel, so
         // Task.WhenAll returns as soon as the slowest one finishes or hits the
         // 3s cap -- a single slow/failed provider never blocks the others.
@@ -23,12 +33,22 @@ public class SourcingAggregatorService(
 
         var offers = calls.SelectMany(call => call.Offers).ToList();
         var diagnostics = calls.Select(call => call.Diagnostic).ToList();
+        var usedMockFallback = false;
 
         if (offers.Count == 0)
         {
             var mockCall = await CallProviderAsync(mockProvider, ingredientName, lat, lng, cancellationToken);
             offers = mockCall.Offers.ToList();
             diagnostics.Add(mockCall.Diagnostic);
+            usedMockFallback = true;
+        }
+
+        // Don't cache empty or simulated results -- a transient provider failure
+        // shouldn't be pinned in place for the full TTL when a retry soon after
+        // might reach the real providers successfully.
+        if (offers.Count > 0 && !usedMockFallback)
+        {
+            await cache.SetAsync(ingredientName, lat, lng, offers, cancellationToken);
         }
 
         return new NearbySourcingResponse(ingredientName, lat, lng, offers, diagnostics);

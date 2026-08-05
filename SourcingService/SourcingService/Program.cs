@@ -2,17 +2,23 @@ using Messaging;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.Extensions.Options;
 using Observability;
+using SourcingService.Caching;
 using SourcingService.Exceptions;
 using SourcingService.Providers;
 using SourcingService.Providers.GooglePlaces;
 using SourcingService.Providers.Kroger;
 using SourcingService.Providers.Mock;
 using SourcingService.Services;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.AddObservability("sourcing-service", tracing => tracing
-    .AddSource(QStashInstrumentation.ActivitySourceName));
+builder.AddObservability(
+    "sourcing-service",
+    tracing => tracing
+        .AddSource(QStashInstrumentation.ActivitySourceName)
+        .AddSource(SourcingCacheInstrumentation.ActivitySourceName),
+    metrics => metrics.AddMeter(SourcingCacheInstrumentation.MeterName));
 
 builder.Services.Configure<QStashOptions>(builder.Configuration.GetSection("QStash"));
 
@@ -22,6 +28,19 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.Configure<KrogerOptions>(builder.Configuration.GetSection("Kroger"));
 builder.Services.Configure<GooglePlacesOptions>(builder.Configuration.GetSection("GooglePlaces"));
+builder.Services.Configure<RedisOptions>(builder.Configuration.GetSection("Redis"));
+
+// Lazy connect: don't block app startup on Redis being reachable. RedisSourcingCache
+// treats connection/timeout failures as a cache miss rather than a request failure.
+builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+{
+    var redisOptions = sp.GetRequiredService<IOptions<RedisOptions>>().Value;
+    var configuration = ConfigurationOptions.Parse(redisOptions.ConnectionString);
+    configuration.AbortOnConnectFail = false;
+    return ConnectionMultiplexer.Connect(configuration);
+});
+
+builder.Services.AddSingleton<ISourcingCache, RedisSourcingCache>();
 
 // Kroger OAuth2 client-credentials flow: a bare named client used only for
 // the token endpoint (Basic auth, handled by hand in KrogerTokenService),
