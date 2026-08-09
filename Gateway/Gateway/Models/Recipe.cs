@@ -36,3 +36,16 @@ public class RecipeIngredient
     // check, rather than re-checked per ingredient (see Query.GetRecipeAsync).
     public required bool InPantry { get; init; }
 }
+
+public class RecipeSummary
+{
+    public required long Id { get; init; }
+    public required long AuthorId { get; init; }
+    public required string Title { get; init; }
+    public string? Description { get; init; }
+    public int? Servings { get; init; }
+    public int? PrepTimeMin { get; init; }
+    public int? CookTimeMin { get; init; }
+    public string? ImageUrl { get; init; }
+    public required DateTimeOffset CreatedAt { get; init; }
+}

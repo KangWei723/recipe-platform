@@ -1,0 +1,87 @@
+export interface RecipeSummary {
+  id: number;
+  title: string;
+  description: string | null;
+  servings: number | null;
+  prepTimeMin: number | null;
+  cookTimeMin: number | null;
+  imageUrl: string | null;
+}
+
+export interface Substitution {
+  substituteName: string;
+  ratio: number;
+  contexts: string[];
+  confidence: number;
+}
+
+export interface RecipeIngredient {
+  id: number;
+  ingredientId: number;
+  ingredientName: string;
+  quantity: number;
+  unit: string;
+  optional: boolean;
+  inPantry: boolean;
+  substitutions: Substitution[];
+}
+
+export interface RecipeStep {
+  id: number;
+  stepNumber: number;
+  instruction: string;
+  timerSeconds: number | null;
+}
+
+export interface RecipeDetail {
+  id: number;
+  title: string;
+  description: string | null;
+  servings: number | null;
+  prepTimeMin: number | null;
+  cookTimeMin: number | null;
+  imageUrl: string | null;
+  steps: RecipeStep[];
+  ingredients: RecipeIngredient[];
+}
+
+export interface Ingredient {
+  id: number;
+  name: string;
+  category: string | null;
+  defaultUnit: string;
+}
+
+export interface PantryItem {
+  id: number;
+  ingredientId: number;
+  ingredientName: string;
+  quantity: number;
+  unit: string;
+  expiryDate: string | null;
+  updatedAt: string;
+}
+
+export interface CreateRecipeStepInput {
+  stepNumber: number;
+  instruction: string;
+  timerSeconds: number | null;
+}
+
+export interface CreateRecipeIngredientInput {
+  ingredientId: number;
+  quantity: number;
+  unit: string;
+  optional: boolean;
+}
+
+export interface StoreOffer {
+  providerName: string;
+  storeName: string;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
+  price: number | null;
+  currency: string | null;
+  isSimulated: boolean;
+}

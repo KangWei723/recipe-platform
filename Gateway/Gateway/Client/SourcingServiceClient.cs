@@ -1,17 +1,23 @@
 using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Gateway.Exceptions;
+using Polly.Timeout;
 
 namespace Gateway.Client;
 
-public class SourcingServiceClient(HttpClient httpClient) : ISourcingServiceClient
+public class SourcingServiceClient(HttpClient httpClient, ILogger<SourcingServiceClient> logger)
+    : ISourcingServiceClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
     };
 
+    // Nearby-store lookups are a non-critical enhancement (see Query.NearbyStoresAsync /
+    // RecipeIngredientResolvers.GetNearbyStoresAsync) -- any failure here (unreachable, timed
+    // out via the scoped timeout configured on this HttpClient in Program.cs, or a non-2xx
+    // response) degrades to an empty result instead of throwing. Mirrors
+    // SubstitutionServiceClient's fallback.
     public async Task<NearbySourcingDto> GetNearbyAsync(
         string ingredientName, double lat, double lng, CancellationToken cancellationToken = default)
     {
@@ -25,24 +31,28 @@ public class SourcingServiceClient(HttpClient httpClient) : ISourcingServiceClie
         {
             response = await httpClient.GetAsync(requestUri, cancellationToken);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or TimeoutRejectedException)
         {
             if (cancellationToken.IsCancellationRequested)
             {
                 throw;
             }
 
-            throw new UpstreamServiceException($"Call to sourcing-service failed: {requestUri}", ex);
+            logger.LogWarning(ex,
+                "sourcing-service unreachable/timed out for {RequestUri}; returning empty nearby stores",
+                requestUri);
+            return new NearbySourcingDto(ingredientName, lat, lng, []);
         }
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new UpstreamServiceException(
-                $"sourcing-service returned {(int)response.StatusCode} for {requestUri}");
+            logger.LogWarning(
+                "sourcing-service returned {StatusCode} for {RequestUri}; returning empty nearby stores",
+                (int)response.StatusCode, requestUri);
+            return new NearbySourcingDto(ingredientName, lat, lng, []);
         }
 
         var result = await response.Content.ReadFromJsonAsync<NearbySourcingDto>(JsonOptions, cancellationToken);
-        return result ?? throw new UpstreamServiceException(
-            $"sourcing-service returned an empty body for {requestUri}");
+        return result ?? new NearbySourcingDto(ingredientName, lat, lng, []);
     }
 }

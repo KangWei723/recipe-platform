@@ -1,0 +1,9 @@
+namespace Gateway.Models;
+
+public class Ingredient
+{
+    public required long Id { get; init; }
+    public required string Name { get; init; }
+    public string? Category { get; init; }
+    public required string DefaultUnit { get; init; }
+}

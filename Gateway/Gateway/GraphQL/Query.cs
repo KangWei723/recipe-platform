@@ -63,4 +63,78 @@ public class Query
                 .ToList()
         };
     }
+
+    public async Task<IReadOnlyList<RecipeSummary>> RecipesAsync(
+        [Service] IRecipeServiceClient recipeClient,
+        CancellationToken cancellationToken)
+    {
+        var summaries = await recipeClient.GetAllAsync(cancellationToken);
+        return summaries
+            .Select(r => new RecipeSummary
+            {
+                Id = r.Id,
+                AuthorId = r.AuthorId,
+                Title = r.Title,
+                Description = r.Description,
+                Servings = r.Servings,
+                PrepTimeMin = r.PrepTimeMin,
+                CookTimeMin = r.CookTimeMin,
+                ImageUrl = r.ImageUrl,
+                CreatedAt = r.CreatedAt
+            })
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<Ingredient>> IngredientsAsync(
+        [Service] IRecipeServiceClient recipeClient,
+        CancellationToken cancellationToken)
+    {
+        var ingredients = await recipeClient.GetIngredientsAsync(cancellationToken);
+        return ingredients
+            .Select(i => new Ingredient
+            {
+                Id = i.Id,
+                Name = i.Name,
+                Category = i.Category,
+                DefaultUnit = i.DefaultUnit
+            })
+            .ToList();
+    }
+
+    // No userId argument, same reason as GetRecipeAsync: pantry-service resolves the caller
+    // from the forwarded bearer token, not a client-supplied value.
+    public async Task<IReadOnlyList<PantryItem>> PantryItemsAsync(
+        [Service] IPantryServiceClient pantryClient,
+        CancellationToken cancellationToken)
+    {
+        var items = await pantryClient.GetForUserAsync(cancellationToken);
+        return items
+            .Select(i => new PantryItem
+            {
+                Id = i.Id,
+                UserId = i.UserId,
+                IngredientId = i.IngredientId,
+                IngredientName = i.IngredientName,
+                Quantity = i.Quantity,
+                Unit = i.Unit,
+                ExpiryDate = i.ExpiryDate,
+                UpdatedAt = i.UpdatedAt
+            })
+            .ToList();
+    }
+
+    // Standalone per-ingredient lookup, separate from RecipeIngredient.nearbyStores -- that
+    // field is nested under a recipe's full ingredients list, so using it for a single
+    // ingredient would mean re-fetching (and re-querying sourcing-service for) every other
+    // ingredient too. This lets a client look up just the one ingredient it needs.
+    public async Task<IReadOnlyList<StoreOffer>> NearbyStoresAsync(
+        string ingredientName,
+        double lat,
+        double lng,
+        [Service] ISourcingServiceClient sourcingClient,
+        CancellationToken cancellationToken)
+    {
+        var nearby = await sourcingClient.GetNearbyAsync(ingredientName, lat, lng, cancellationToken);
+        return StoreOfferMapper.ToGraphQl(nearby.Results);
+    }
 }

@@ -45,7 +45,14 @@ builder.Services
         client.BaseAddress = new Uri(baseUrl);
     })
     .AddHttpMessageHandler<AuthHeaderForwardingHandler>()
-    .AddStandardResilienceHandler();
+    .AddStandardResilienceHandler(options =>
+    {
+        // Substitutions are a non-critical enhancement (see SubstitutionServiceClient) -- fail
+        // fast instead of the other clients' default 30s total-request budget, so a struggling
+        // substitution-service/Neo4j can't stall the whole recipe query.
+        options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(2);
+        options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(3);
+    });
 
 builder.Services
     .AddHttpClient<ISourcingServiceClient, SourcingServiceClient>(client =>
@@ -55,7 +62,17 @@ builder.Services
         client.BaseAddress = new Uri(baseUrl);
     })
     .AddHttpMessageHandler<AuthHeaderForwardingHandler>()
-    .AddStandardResilienceHandler();
+    .AddStandardResilienceHandler(options =>
+    {
+        // Nearby-store lookups are a non-critical enhancement (see SourcingServiceClient) --
+        // fail fast instead of the other clients' default 30s total-request budget, same
+        // reasoning as SubstitutionService's client above. Budget is looser than
+        // SubstitutionService's (2s/3s) because sourcing-service legitimately fans out to two
+        // real external providers (Kroger, Google Places) in parallel with its own ~3s
+        // per-provider timeout -- this must comfortably exceed that normal-case duration.
+        options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(4);
+        options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(6);
+    });
 
 builder.Services.AddHealthChecks();
 
@@ -75,6 +92,7 @@ builder.Services.AddCors(options =>
 builder.Services
     .AddGraphQLServer()
     .AddQueryType<Query>()
+    .AddMutationType<Mutation>()
     .AddTypeExtension<RecipeIngredientResolvers>()
     .AddErrorFilter<UpstreamServiceErrorFilter>()
     .ModifyRequestOptions(o => o.IncludeExceptionDetails = builder.Environment.IsDevelopment());

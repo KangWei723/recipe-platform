@@ -16,3 +16,21 @@ public record MissingIngredientsDto(
     string RecipeTitle,
     List<MissingIngredientDto> MissingIngredients
 );
+
+public record PantryItemDto(
+    long Id,
+    long UserId,
+    long IngredientId,
+    string IngredientName,
+    decimal Quantity,
+    string Unit,
+    DateOnly? ExpiryDate,
+    DateTimeOffset UpdatedAt
+);
+
+public record UpsertPantryItemDto(
+    long IngredientId,
+    decimal Quantity,
+    string Unit,
+    DateOnly? ExpiryDate
+);

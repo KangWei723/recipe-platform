@@ -3,4 +3,12 @@ namespace Gateway.Client;
 public interface IRecipeServiceClient
 {
     Task<RecipeDetailDto?> GetRecipeAsync(long recipeId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<RecipeSummaryDto>> GetAllAsync(CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<IngredientDto>> GetIngredientsAsync(CancellationToken cancellationToken = default);
+
+    // No author argument: recipe-service derives the author from the caller's own forwarded
+    // bearer token (UsersService.ResolveCurrentUserAsync), not from anything Gateway supplies.
+    Task<RecipeDetailDto> CreateAsync(CreateRecipeDto request, CancellationToken cancellationToken = default);
 }

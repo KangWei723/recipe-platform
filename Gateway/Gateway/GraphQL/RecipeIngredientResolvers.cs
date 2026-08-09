@@ -33,18 +33,6 @@ public class RecipeIngredientResolvers
         CancellationToken cancellationToken)
     {
         var nearby = await sourcingClient.GetNearbyAsync(ingredient.IngredientName, lat, lng, cancellationToken);
-        return nearby.Results
-            .Select(r => new StoreOffer
-            {
-                ProviderName = r.ProviderName,
-                StoreName = r.StoreName,
-                Address = r.Address,
-                Lat = r.Lat,
-                Lng = r.Lng,
-                Price = r.Price,
-                Currency = r.Currency,
-                IsSimulated = r.IsSimulated
-            })
-            .ToList();
+        return StoreOfferMapper.ToGraphQl(nearby.Results);
     }
 }
