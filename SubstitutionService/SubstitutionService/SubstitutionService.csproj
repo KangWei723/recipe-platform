@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="Neo4j.Driver" Version="6.3.0" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.7.3" />
   </ItemGroup>
 
   <ItemGroup>
