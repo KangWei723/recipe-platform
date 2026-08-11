@@ -97,19 +97,22 @@ export function PantryPage() {
             type="number"
             min="0"
             step="any"
+            className="input-mono"
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
           />
         </label>
         <label>
           Unit
-          <input type="text" value={unit} onChange={(e) => setUnit(e.target.value)} />
+          <input type="text" className="input-mono" value={unit} onChange={(e) => setUnit(e.target.value)} />
         </label>
         <label>
           Expiry date (optional)
           <input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
         </label>
-        <button type="submit">Add / Update</button>
+        <button type="submit" className="btn btn-primary">
+          Add / Update
+        </button>
       </form>
       {formError && <p className="error-message">{formError}</p>}
 
@@ -119,10 +122,13 @@ export function PantryPage() {
       {pantryData?.pantryItems.map((item) => (
         <div key={item.id} className="pantry-item-row">
           <span>
-            {item.quantity} {item.unit} {item.ingredientName}
+            <span className="pantry-qty">
+              {item.quantity} {item.unit}
+            </span>
+            {item.ingredientName}
             {item.expiryDate ? ` (expires ${item.expiryDate})` : ''}
           </span>
-          <button type="button" onClick={() => handleRemove(item.id)}>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleRemove(item.id)}>
             Remove
           </button>
         </div>

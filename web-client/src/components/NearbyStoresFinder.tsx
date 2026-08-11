@@ -70,7 +70,7 @@ export function NearbyStoresFinder({ ingredientName }: { ingredientName: string 
       return (
         <div>
           <p className="nearby-stores-status">No nearby stores found for this ingredient.</p>
-          <button type="button" onClick={handleFindStores}>
+          <button type="button" className="btn btn-outline btn-sm" onClick={handleFindStores}>
             Search again
           </button>
         </div>
@@ -104,7 +104,7 @@ export function NearbyStoresFinder({ ingredientName }: { ingredientName: string 
 
   return (
     <div>
-      <button type="button" onClick={handleFindStores}>
+      <button type="button" className="btn btn-outline btn-sm" onClick={handleFindStores}>
         Find nearby stores
       </button>
       {state.status === 'error' && <p className="error-message">{state.message}</p>}

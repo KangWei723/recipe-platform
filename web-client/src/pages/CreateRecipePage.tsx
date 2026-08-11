@@ -140,7 +140,7 @@ export function CreateRecipePage() {
 
         <h2>Ingredients</h2>
         {ingredientRows.map((row) => (
-          <div key={row.key} className="pantry-form">
+          <div key={row.key} className="field-row">
             <label>
               Ingredient
               <select
@@ -162,6 +162,7 @@ export function CreateRecipePage() {
                 type="number"
                 min="0"
                 step="any"
+                className="input-mono"
                 value={row.quantity}
                 onChange={(e) => updateIngredientRow(row.key, { quantity: e.target.value })}
               />
@@ -170,6 +171,7 @@ export function CreateRecipePage() {
               Unit
               <input
                 type="text"
+                className="input-mono"
                 value={row.unit}
                 onChange={(e) => updateIngredientRow(row.key, { unit: e.target.value })}
               />
@@ -184,6 +186,7 @@ export function CreateRecipePage() {
             </label>
             <button
               type="button"
+              className="btn btn-ghost btn-sm"
               onClick={() => setIngredientRows((rows) => rows.filter((r) => r.key !== row.key))}
               disabled={ingredientRows.length === 1}
             >
@@ -191,13 +194,17 @@ export function CreateRecipePage() {
             </button>
           </div>
         ))}
-        <button type="button" onClick={() => setIngredientRows((rows) => [...rows, emptyIngredientRow()])}>
+        <button
+          type="button"
+          className="btn btn-outline btn-sm"
+          onClick={() => setIngredientRows((rows) => [...rows, emptyIngredientRow()])}
+        >
           Add ingredient
         </button>
 
         <h2>Steps</h2>
         {stepRows.map((row, index) => (
-          <div key={row.key} className="pantry-form">
+          <div key={row.key} className="field-row">
             <label>
               Step {index + 1}
               <input
@@ -217,6 +224,7 @@ export function CreateRecipePage() {
             </label>
             <button
               type="button"
+              className="btn btn-ghost btn-sm"
               onClick={() => setStepRows((rows) => rows.filter((r) => r.key !== row.key))}
               disabled={stepRows.length === 1}
             >
@@ -224,13 +232,17 @@ export function CreateRecipePage() {
             </button>
           </div>
         ))}
-        <button type="button" onClick={() => setStepRows((rows) => [...rows, emptyStepRow()])}>
+        <button
+          type="button"
+          className="btn btn-outline btn-sm"
+          onClick={() => setStepRows((rows) => [...rows, emptyStepRow()])}
+        >
           Add step
         </button>
 
         {error && <p className="error-message">{error}</p>}
         <div className="form-field">
-          <button type="submit" disabled={submitting}>
+          <button type="submit" className="btn btn-primary" disabled={submitting}>
             {submitting ? 'Creating...' : 'Create Recipe'}
           </button>
         </div>

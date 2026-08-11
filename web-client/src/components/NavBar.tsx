@@ -15,7 +15,11 @@ export function NavBar() {
       </div>
       <div className="navbar-user">
         {user?.email && <span>{user.email}</span>}
-        <button type="button" onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}>
+        <button
+          type="button"
+          className="btn btn-outline btn-sm"
+          onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}
+        >
           Log out
         </button>
       </div>

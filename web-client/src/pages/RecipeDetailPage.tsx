@@ -39,9 +39,13 @@ export function RecipeDetailPage() {
       {recipe.ingredients.map((ingredient) => (
         <div key={ingredient.id}>
           <div className={`ingredient-row${ingredient.inPantry ? ' in-pantry' : ''}`}>
-            <span>{ingredient.inPantry ? '✓' : '✗'}</span>
-            <span>
-              {ingredient.quantity} {ingredient.unit} {ingredient.ingredientName}
+            <span className="ingredient-dot" aria-hidden="true" />
+            <span className="sr-only">{ingredient.inPantry ? 'In pantry' : 'Missing'}</span>
+            <span className="ingredient-qty">
+              {ingredient.quantity} {ingredient.unit}
+            </span>
+            <span className="ingredient-name">
+              {ingredient.ingredientName}
               {ingredient.optional ? ' (optional)' : ''}
             </span>
           </div>
@@ -64,7 +68,7 @@ export function RecipeDetailPage() {
       ))}
 
       <h2>Steps</h2>
-      <ol>
+      <ol className="steps-list">
         {sortedSteps.map((step) => (
           <li key={step.id}>
             {step.instruction}

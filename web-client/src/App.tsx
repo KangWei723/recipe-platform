@@ -17,7 +17,7 @@ function App() {
   if (!isAuthenticated) {
     return (
       <div className="centered-message">
-        <button type="button" onClick={() => loginWithRedirect()}>
+        <button type="button" className="btn btn-primary" onClick={() => loginWithRedirect()}>
           Log in
         </button>
       </div>
