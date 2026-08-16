@@ -1,19 +1,22 @@
 using Auth;
 using Gateway.Client;
 using Gateway.GraphQL;
+using HotChocolate.Authorization;
 using Observability;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddObservability("gateway");
+builder.AddAuth0Authentication();
 
 builder.Services.AddGateway();
 
-// Gateway itself doesn't validate the caller's JWT -- it's a pure aggregator with no
-// per-request business logic of its own. Each backend service (which does have
-// AddAuth0Authentication wired in) enforces auth on the forwarded request instead. What
-// Gateway must do is forward the original Authorization header onto every downstream call,
-// or those calls would arrive anonymous and get rejected.
+// Each backend service still validates the forwarded bearer token itself and is the real
+// enforcement point -- Gateway authenticating too isn't a substitute for that, it just lets
+// Gateway reject with a clean 401/GraphQL auth error (and, via the AdminOnly policy on specific
+// mutations below, a clean 403) instead of every request round-tripping to a backend only to
+// bounce off its auth check. What Gateway must also keep doing is forward the original
+// Authorization header onto every downstream call, or those calls would arrive anonymous.
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddTransient<AuthHeaderForwardingHandler>();
 
@@ -91,6 +94,8 @@ builder.Services.AddCors(options =>
 
 builder.Services
     .AddGraphQLServer()
+    .AddAuthorizationCore()
+    .AddAuthorizationHandler<GraphQLAuthorizationHandler>()
     .AddQueryType<Query>()
     .AddMutationType<Mutation>()
     .AddTypeExtension<RecipeIngredientResolvers>()
@@ -101,7 +106,10 @@ var app = builder.Build();
 
 app.UseCors();
 
-app.MapHealthChecks("/actuator/health");
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapHealthChecks("/actuator/health").AllowAnonymous();
 app.MapGraphQL("/graphql");
 
 app.Run();

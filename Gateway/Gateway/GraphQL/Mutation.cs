@@ -1,6 +1,8 @@
+using Auth;
 using Gateway.Client;
 using Gateway.Models;
 using HotChocolate;
+using HotChocolate.Authorization;
 
 namespace Gateway.GraphQL;
 
@@ -46,6 +48,11 @@ public class Mutation
     // the author from the caller's own forwarded bearer token (see IRecipeServiceClient.CreateAsync),
     // not from anything a client could supply -- this is the same fix already applied to
     // CreateRecipeRequest.AuthorId on the REST side.
+    //
+    // [Authorize] here is a UX shortcut, not the real boundary -- recipe-service enforces the
+    // same AuthorizationPolicies.AdminOnly policy on the forwarded request regardless. Apply the
+    // same attribute to any future update/delete recipe or ingredient mutations.
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
     public async Task<RecipeSummary> CreateRecipeAsync(
         string title,
         string? description,

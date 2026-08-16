@@ -40,6 +40,14 @@ public static class AuthenticationExtensions
             options.FallbackPolicy = new AuthorizationPolicyBuilder()
                 .RequireAuthenticatedUser()
                 .Build();
+
+            // Auth0 puts role names in a custom claim (arrays come through JWT bearer as one
+            // Claim per element, since MapInboundClaims is off above), not the .NET RoleClaimType
+            // ASP.NET Core's built-in RequireRole() looks at -- hence the explicit assertion
+            // instead of policy.RequireRole().
+            options.AddPolicy(AuthorizationPolicies.AdminOnly, policy => policy.RequireAssertion(context =>
+                context.User.FindAll(AuthorizationPolicies.RolesClaimType)
+                    .Any(claim => claim.Value == AuthorizationPolicies.AdminRole)));
         });
 
         return builder;

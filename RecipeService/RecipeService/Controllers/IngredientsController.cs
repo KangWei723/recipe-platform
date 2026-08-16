@@ -1,3 +1,4 @@
+using Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RecipeService.Dtos;
@@ -19,6 +20,7 @@ public class IngredientsController(IIngredientsService service) : ControllerBase
         Ok(await service.GetByIdAsync(id));
 
     [HttpPost]
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
     public async Task<ActionResult<IngredientResponse>> Create([FromBody] CreateIngredientRequest request)
     {
         var created = await service.CreateAsync(request);

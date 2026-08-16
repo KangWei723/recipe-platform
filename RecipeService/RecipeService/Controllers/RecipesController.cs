@@ -1,3 +1,4 @@
+using Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RecipeService.Dtos;
@@ -19,6 +20,7 @@ public class RecipesController(IRecipesService service, IUsersService usersServi
         Ok(await service.GetByIdAsync(id));
 
     [HttpPost]
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
     public async Task<ActionResult<RecipeDetailResponse>> Create([FromBody] CreateRecipeRequest request)
     {
         // AuthorId used to be a client-supplied field on the request body -- any caller could

@@ -1,8 +1,10 @@
 import { useAuth0 } from '@auth0/auth0-react';
 import { NavLink } from 'react-router-dom';
+import { useIsAdmin } from '../auth/useIsAdmin';
 
 export function NavBar() {
   const { user, logout } = useAuth0();
+  const isAdmin = useIsAdmin();
 
   return (
     <nav className="navbar">
@@ -10,7 +12,7 @@ export function NavBar() {
         <NavLink to="/" end>
           Recipes
         </NavLink>
-        <NavLink to="/recipes/new">Add Recipe</NavLink>
+        {isAdmin && <NavLink to="/recipes/new">Add Recipe</NavLink>}
         <NavLink to="/pantry">Pantry</NavLink>
       </div>
       <div className="navbar-user">
