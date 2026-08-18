@@ -50,8 +50,8 @@ public class Mutation
     // CreateRecipeRequest.AuthorId on the REST side.
     //
     // [Authorize] here is a UX shortcut, not the real boundary -- recipe-service enforces the
-    // same AuthorizationPolicies.AdminOnly policy on the forwarded request regardless. Apply the
-    // same attribute to any future update/delete recipe or ingredient mutations.
+    // same AuthorizationPolicies.AdminOnly policy on the forwarded request regardless. Applied to
+    // every recipe/ingredient write mutation below for the same reason.
     [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
     public async Task<RecipeSummary> CreateRecipeAsync(
         string title,
@@ -80,7 +80,91 @@ public class Mutation
                     .ToList()),
             cancellationToken);
 
-        return new RecipeSummary
+        return ToRecipeSummary(dto);
+    }
+
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+    public async Task<RecipeSummary> UpdateRecipeAsync(
+        long recipeId,
+        string title,
+        string? description,
+        int? servings,
+        int? prepTimeMin,
+        int? cookTimeMin,
+        List<CreateRecipeStepInput> steps,
+        List<CreateRecipeIngredientInput> ingredients,
+        [Service] IRecipeServiceClient recipeClient,
+        CancellationToken cancellationToken)
+    {
+        var dto = await recipeClient.UpdateAsync(
+            recipeId,
+            new UpdateRecipeDto(
+                title,
+                description,
+                servings,
+                prepTimeMin,
+                cookTimeMin,
+                ImageUrl: null,
+                steps
+                    .Select(s => new CreateRecipeStepDto(s.StepNumber, s.Instruction, s.TimerSeconds))
+                    .ToList(),
+                ingredients
+                    .Select(i => new CreateRecipeIngredientDto(i.IngredientId, i.Quantity, i.Unit, i.Optional))
+                    .ToList()),
+            cancellationToken);
+
+        return ToRecipeSummary(dto);
+    }
+
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+    public async Task<bool> DeleteRecipeAsync(
+        long recipeId,
+        [Service] IRecipeServiceClient recipeClient,
+        CancellationToken cancellationToken)
+    {
+        await recipeClient.DeleteAsync(recipeId, cancellationToken);
+        return true;
+    }
+
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+    public async Task<Ingredient> CreateIngredientAsync(
+        string name,
+        string? category,
+        string defaultUnit,
+        [Service] IRecipeServiceClient recipeClient,
+        CancellationToken cancellationToken)
+    {
+        var dto = await recipeClient.CreateIngredientAsync(
+            new CreateIngredientDto(name, category, defaultUnit), cancellationToken);
+        return ToIngredient(dto);
+    }
+
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+    public async Task<Ingredient> UpdateIngredientAsync(
+        long ingredientId,
+        string name,
+        string? category,
+        string defaultUnit,
+        [Service] IRecipeServiceClient recipeClient,
+        CancellationToken cancellationToken)
+    {
+        var dto = await recipeClient.UpdateIngredientAsync(
+            ingredientId, new UpdateIngredientDto(name, category, defaultUnit), cancellationToken);
+        return ToIngredient(dto);
+    }
+
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+    public async Task<bool> DeleteIngredientAsync(
+        long ingredientId,
+        [Service] IRecipeServiceClient recipeClient,
+        CancellationToken cancellationToken)
+    {
+        await recipeClient.DeleteIngredientAsync(ingredientId, cancellationToken);
+        return true;
+    }
+
+    private static RecipeSummary ToRecipeSummary(RecipeDetailDto dto) =>
+        new()
         {
             Id = dto.Id,
             AuthorId = dto.AuthorId,
@@ -92,5 +176,13 @@ public class Mutation
             ImageUrl = dto.ImageUrl,
             CreatedAt = dto.CreatedAt
         };
-    }
+
+    private static Ingredient ToIngredient(IngredientDto dto) =>
+        new()
+        {
+            Id = dto.Id,
+            Name = dto.Name,
+            Category = dto.Category,
+            DefaultUnit = dto.DefaultUnit
+        };
 }

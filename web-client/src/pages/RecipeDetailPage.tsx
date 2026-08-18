@@ -1,18 +1,26 @@
-import { useParams } from 'react-router-dom';
-import { useQuery } from 'urql';
+import { useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useMutation, useQuery } from 'urql';
+import { useIsAdmin } from '../auth/useIsAdmin';
 import { NearbyStoresFinder } from '../components/NearbyStoresFinder';
-import { RECIPE_QUERY } from '../graphql/queries';
+import { DELETE_RECIPE_MUTATION, RECIPE_QUERY } from '../graphql/queries';
 import type { RecipeDetail } from '../graphql/types';
+import { formatMutationError } from '../utils/errors';
 
 export function RecipeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const recipeId = Number(id);
+  const navigate = useNavigate();
+  const isAdmin = useIsAdmin();
 
   const [{ data, fetching, error }] = useQuery<{ recipe: RecipeDetail | null }, { id: number }>({
     query: RECIPE_QUERY,
     variables: { id: recipeId },
     pause: Number.isNaN(recipeId),
   });
+  const [, deleteRecipe] = useMutation(DELETE_RECIPE_MUTATION);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   if (fetching) return <p>Loading recipe...</p>;
   if (error) return <p className="error-message">Failed to load recipe: {error.message}</p>;
@@ -21,9 +29,38 @@ export function RecipeDetailPage() {
   const recipe = data.recipe;
   const sortedSteps = [...recipe.steps].sort((a, b) => a.stepNumber - b.stepNumber);
 
+  async function handleDelete() {
+    if (!window.confirm(`Delete "${recipe.title}"? This cannot be undone.`)) {
+      return;
+    }
+
+    setDeleteError(null);
+    setDeleting(true);
+    const result = await deleteRecipe({ recipeId });
+    setDeleting(false);
+
+    if (result.error) {
+      setDeleteError(formatMutationError(result.error, 'Failed to delete recipe.'));
+      return;
+    }
+
+    navigate('/');
+  }
+
   return (
     <div>
       <h1>{recipe.title}</h1>
+      {isAdmin && (
+        <div className="field-row">
+          <Link to={`/recipes/${recipe.id}/edit`} className="btn btn-outline btn-sm">
+            Edit
+          </Link>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={handleDelete} disabled={deleting}>
+            {deleting ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
+      )}
+      {deleteError && <p className="error-message">{deleteError}</p>}
       {recipe.description && <p>{recipe.description}</p>}
       <small>
         {[

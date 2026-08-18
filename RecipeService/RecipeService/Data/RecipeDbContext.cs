@@ -82,9 +82,16 @@ public class RecipeDbContext(DbContextOptions<RecipeDbContext> options) : DbCont
             entity.Property(e => e.Unit).HasColumnName("unit");
             entity.Property(e => e.Optional).HasColumnName("optional");
 
+            // Explicit Restrict, not the EF Core default (Cascade for a required FK): the SQL
+            // schema (init-db/01-schema.sql) declares this FK with no ON DELETE clause, which
+            // Postgres defaults to RESTRICT/NO ACTION. Without this, EnsureCreatedAsync/migrations
+            // would silently generate ON DELETE CASCADE instead, diverging from production and
+            // undermining IngredientsService.DeleteAsync's "block, don't cascade" design -- caught
+            // by IngredientRepositoryTests expecting a foreign-key-violation, not a silent cascade.
             entity.HasOne(e => e.Ingredient)
                 .WithMany()
-                .HasForeignKey(e => e.IngredientId);
+                .HasForeignKey(e => e.IngredientId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

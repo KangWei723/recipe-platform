@@ -28,13 +28,7 @@ public class RecipesService(
         var author = await userRepository.GetByIdAsync(authorId)
             ?? throw new ValidationException($"Author {authorId} does not exist");
 
-        var ingredientIds = request.Ingredients.Select(i => i.IngredientId).Distinct().ToList();
-        var existingIngredients = await ingredientRepository.GetByIdsAsync(ingredientIds);
-        if (existingIngredients.Count != ingredientIds.Count)
-        {
-            var missing = ingredientIds.Except(existingIngredients.Select(i => i.Id));
-            throw new ValidationException($"Unknown ingredient id(s): {string.Join(", ", missing)}");
-        }
+        await EnsureIngredientsExistAsync(request.Ingredients.Select(i => i.IngredientId));
 
         var recipe = new Recipe
         {
@@ -69,6 +63,62 @@ public class RecipesService(
         var withNames = await recipeRepository.GetByIdAsync(created.Id)
             ?? throw new NotFoundException($"Recipe {created.Id} not found after create");
         return ToDetailResponse(withNames);
+    }
+
+    public async Task<RecipeDetailResponse> UpdateAsync(long id, UpdateRecipeRequest request)
+    {
+        await EnsureIngredientsExistAsync(request.Ingredients.Select(i => i.IngredientId));
+
+        var updated = await recipeRepository.UpdateAsync(
+            id,
+            request.Title,
+            request.Description,
+            request.Servings,
+            request.PrepTimeMin,
+            request.CookTimeMin,
+            request.ImageUrl,
+            request.Steps
+                .Select(s => new RecipeStep
+                {
+                    StepNumber = s.StepNumber,
+                    Instruction = s.Instruction,
+                    TimerSeconds = s.TimerSeconds
+                })
+                .ToList(),
+            request.Ingredients
+                .Select(i => new RecipeIngredient
+                {
+                    IngredientId = i.IngredientId,
+                    Quantity = i.Quantity,
+                    Unit = i.Unit,
+                    Optional = i.Optional
+                })
+                .ToList()
+        ) ?? throw new NotFoundException($"Recipe {id} not found");
+
+        var withNames = await recipeRepository.GetByIdAsync(updated.Id)
+            ?? throw new NotFoundException($"Recipe {updated.Id} not found after update");
+        return ToDetailResponse(withNames);
+    }
+
+    public async Task DeleteAsync(long id)
+    {
+        var deleted = await recipeRepository.DeleteAsync(id);
+        if (!deleted)
+        {
+            throw new NotFoundException($"Recipe {id} not found");
+        }
+    }
+
+    private async Task EnsureIngredientsExistAsync(IEnumerable<long> ingredientIds)
+    {
+        var distinctIds = ingredientIds.Distinct().ToList();
+        var existingIngredients = await ingredientRepository.GetByIdsAsync(distinctIds);
+        if (existingIngredients.Count != distinctIds.Count)
+        {
+            var missing = distinctIds.Except(existingIngredients.Select(i => i.Id));
+            throw new ValidationException($"Unknown ingredient id(s): {string.Join(", ", missing)}");
+        }
     }
 
     private static RecipeSummaryResponse ToSummaryResponse(Recipe recipe) =>

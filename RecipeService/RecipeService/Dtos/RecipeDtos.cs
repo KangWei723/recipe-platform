@@ -33,6 +33,23 @@ public record CreateRecipeRequest(
     public List<CreateRecipeIngredientRequest> Ingredients { get; init; } = Ingredients ?? [];
 }
 
+public record UpdateRecipeRequest(
+    [Required, MaxLength(255)] string Title,
+    string? Description,
+    int? Servings,
+    int? PrepTimeMin,
+    int? CookTimeMin,
+    string? ImageUrl,
+    List<CreateRecipeStepRequest> Steps,
+    List<CreateRecipeIngredientRequest> Ingredients
+)
+{
+    // Same rationale as CreateRecipeRequest: keep LINQ over these lists NRE-free
+    // even if the client omits "steps"/"ingredients" entirely.
+    public List<CreateRecipeStepRequest> Steps { get; init; } = Steps ?? [];
+    public List<CreateRecipeIngredientRequest> Ingredients { get; init; } = Ingredients ?? [];
+}
+
 public record RecipeStepResponse(
     long Id,
     int StepNumber,

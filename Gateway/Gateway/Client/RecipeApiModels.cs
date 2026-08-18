@@ -77,3 +77,26 @@ public record CreateRecipeDto(
     List<CreateRecipeStepDto> Steps,
     List<CreateRecipeIngredientDto> Ingredients
 );
+
+public record UpdateRecipeDto(
+    string Title,
+    string? Description,
+    int? Servings,
+    int? PrepTimeMin,
+    int? CookTimeMin,
+    string? ImageUrl,
+    List<CreateRecipeStepDto> Steps,
+    List<CreateRecipeIngredientDto> Ingredients
+);
+
+public record CreateIngredientDto(
+    string Name,
+    string? Category,
+    string DefaultUnit
+);
+
+public record UpdateIngredientDto(
+    string Name,
+    string? Category,
+    string DefaultUnit
+);

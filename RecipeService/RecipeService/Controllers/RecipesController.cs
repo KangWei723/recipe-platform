@@ -30,4 +30,17 @@ public class RecipesController(IRecipesService service, IUsersService usersServi
         var created = await service.CreateAsync(request, author.Id);
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
+
+    [HttpPut("{id:long}")]
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+    public async Task<ActionResult<RecipeDetailResponse>> Update(long id, [FromBody] UpdateRecipeRequest request) =>
+        Ok(await service.UpdateAsync(id, request));
+
+    [HttpDelete("{id:long}")]
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+    public async Task<IActionResult> Delete(long id)
+    {
+        await service.DeleteAsync(id);
+        return NoContent();
+    }
 }

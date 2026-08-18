@@ -8,6 +8,12 @@ public record CreateIngredientRequest(
     [Required, MaxLength(50)] string DefaultUnit
 );
 
+public record UpdateIngredientRequest(
+    [Required, MaxLength(255)] string Name,
+    [MaxLength(100)] string? Category,
+    [Required, MaxLength(50)] string DefaultUnit
+);
+
 public record IngredientResponse(
     long Id,
     string Name,

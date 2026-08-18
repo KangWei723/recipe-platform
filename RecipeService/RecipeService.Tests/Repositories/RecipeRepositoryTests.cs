@@ -62,4 +62,95 @@ public class RecipeRepositoryTests : IAsyncLifetime
         fetched!.Steps.Should().ContainSingle(s => s.Instruction == "Mix");
         fetched.Ingredients.Should().ContainSingle(i => i.Ingredient!.Name == "Flour");
     }
+
+    [Fact]
+    public async Task UpdateAsync_ReplacesStepsAndIngredients_ReusingSameStepNumbers()
+    {
+        var user = new User { Email = "chef2@example.com", Name = "Chef", CreatedAt = DateTimeOffset.UtcNow };
+        var flour = new Ingredient { Name = "Flour2", DefaultUnit = "g" };
+        var yeast = new Ingredient { Name = "Yeast2", DefaultUnit = "g" };
+        _context.Users.Add(user);
+        _context.Ingredients.AddRange(flour, yeast);
+        await _context.SaveChangesAsync();
+
+        var repository = new RecipeRepository(_context);
+        var recipe = await repository.AddAsync(new Recipe
+        {
+            AuthorId = user.Id,
+            Title = "Bread v1",
+            CreatedAt = DateTimeOffset.UtcNow,
+            Steps = { new RecipeStep { StepNumber = 1, Instruction = "Mix" } },
+            Ingredients = { new RecipeIngredient { IngredientId = flour.Id, Quantity = 500, Unit = "g" } }
+        });
+
+        // Reuses step_number 1 -- exercises the UNIQUE(recipe_id, step_number) constraint that
+        // motivated the two-SaveChangesAsync-calls design (clear+save before add+save).
+        var updated = await repository.UpdateAsync(
+            recipe.Id,
+            title: "Bread v2",
+            description: "Updated",
+            servings: 4,
+            prepTimeMin: 10,
+            cookTimeMin: 30,
+            imageUrl: null,
+            steps: [new RecipeStep { StepNumber = 1, Instruction = "Knead" }],
+            ingredients: [new RecipeIngredient { IngredientId = yeast.Id, Quantity = 10, Unit = "g" }]
+        );
+
+        updated.Should().NotBeNull();
+        var fetched = await repository.GetByIdAsync(recipe.Id);
+        fetched.Should().NotBeNull();
+        fetched!.Title.Should().Be("Bread v2");
+        fetched.Steps.Should().ContainSingle(s => s.Instruction == "Knead" && s.StepNumber == 1);
+        fetched.Ingredients.Should().ContainSingle(i => i.Ingredient!.Name == "Yeast2");
+        fetched.Ingredients.Should().NotContain(i => i.Ingredient!.Name == "Flour2");
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenMissing_ReturnsNull()
+    {
+        var repository = new RecipeRepository(_context);
+
+        var result = await repository.UpdateAsync(
+            999999, "Title", null, null, null, null, null, [], []);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RemovesRecipeAndCascadesStepsAndIngredients()
+    {
+        var user = new User { Email = "chef3@example.com", Name = "Chef", CreatedAt = DateTimeOffset.UtcNow };
+        var flour = new Ingredient { Name = "Flour3", DefaultUnit = "g" };
+        _context.Users.Add(user);
+        _context.Ingredients.Add(flour);
+        await _context.SaveChangesAsync();
+
+        var repository = new RecipeRepository(_context);
+        var recipe = await repository.AddAsync(new Recipe
+        {
+            AuthorId = user.Id,
+            Title = "To Delete",
+            CreatedAt = DateTimeOffset.UtcNow,
+            Steps = { new RecipeStep { StepNumber = 1, Instruction = "Mix" } },
+            Ingredients = { new RecipeIngredient { IngredientId = flour.Id, Quantity = 500, Unit = "g" } }
+        });
+
+        var deleted = await repository.DeleteAsync(recipe.Id);
+
+        deleted.Should().BeTrue();
+        (await repository.GetByIdAsync(recipe.Id)).Should().BeNull();
+        (await _context.RecipeSteps.AnyAsync(s => s.RecipeId == recipe.Id)).Should().BeFalse();
+        (await _context.RecipeIngredients.AnyAsync(i => i.RecipeId == recipe.Id)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WhenMissing_ReturnsFalse()
+    {
+        var repository = new RecipeRepository(_context);
+
+        var deleted = await repository.DeleteAsync(999999);
+
+        deleted.Should().BeFalse();
+    }
 }

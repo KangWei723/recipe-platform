@@ -26,4 +26,17 @@ public class IngredientsController(IIngredientsService service) : ControllerBase
         var created = await service.CreateAsync(request);
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
+
+    [HttpPut("{id:long}")]
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+    public async Task<ActionResult<IngredientResponse>> Update(long id, [FromBody] UpdateIngredientRequest request) =>
+        Ok(await service.UpdateAsync(id, request));
+
+    [HttpDelete("{id:long}")]
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+    public async Task<IActionResult> Delete(long id)
+    {
+        await service.DeleteAsync(id);
+        return NoContent();
+    }
 }

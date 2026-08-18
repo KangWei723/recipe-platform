@@ -2,9 +2,10 @@ import { useAuth0 } from '@auth0/auth0-react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { NavBar } from './components/NavBar';
 import { GraphQLProvider } from './graphql/client';
-import { CreateRecipePage } from './pages/CreateRecipePage';
+import { IngredientsPage } from './pages/IngredientsPage';
 import { PantryPage } from './pages/PantryPage';
 import { RecipeDetailPage } from './pages/RecipeDetailPage';
+import { RecipeFormPage } from './pages/RecipeFormPage';
 import { RecipeListPage } from './pages/RecipeListPage';
 
 function App() {
@@ -31,9 +32,11 @@ function App() {
         <main className="page">
           <Routes>
             <Route path="/" element={<RecipeListPage />} />
-            <Route path="/recipes/new" element={<CreateRecipePage />} />
+            <Route path="/recipes/new" element={<RecipeFormPage />} />
             <Route path="/recipes/:id" element={<RecipeDetailPage />} />
+            <Route path="/recipes/:id/edit" element={<RecipeFormPage />} />
             <Route path="/pantry" element={<PantryPage />} />
+            <Route path="/ingredients" element={<IngredientsPage />} />
           </Routes>
         </main>
       </BrowserRouter>

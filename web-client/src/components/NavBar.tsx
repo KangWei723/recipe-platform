@@ -14,6 +14,7 @@ export function NavBar() {
         </NavLink>
         {isAdmin && <NavLink to="/recipes/new">Add Recipe</NavLink>}
         <NavLink to="/pantry">Pantry</NavLink>
+        {isAdmin && <NavLink to="/ingredients">Manage Ingredients</NavLink>}
       </div>
       <div className="navbar-user">
         {user?.email && <span>{user.email}</span>}

@@ -78,4 +78,71 @@ public class RecipesControllerTests
         var createdResult = result.Result.Should().BeOfType<CreatedAtActionResult>().Subject;
         createdResult.Value.Should().BeEquivalentTo(detail);
     }
+
+    [Fact]
+    public async Task Update_ReturnsUpdatedDetail()
+    {
+        var request = new UpdateRecipeRequest(
+            Title: "Updated Pasta",
+            Description: "Now with garlic",
+            Servings: 4,
+            PrepTimeMin: 15,
+            CookTimeMin: 20,
+            ImageUrl: null,
+            Steps: [new CreateRecipeStepRequest(1, "Boil water", 300)],
+            Ingredients: [new CreateRecipeIngredientRequest(5, 300, "g", false)]
+        );
+
+        var detail = new RecipeDetailResponse(
+            Id: 10,
+            AuthorId: 1,
+            Title: request.Title,
+            Description: request.Description,
+            Servings: request.Servings,
+            PrepTimeMin: request.PrepTimeMin,
+            CookTimeMin: request.CookTimeMin,
+            ImageUrl: request.ImageUrl,
+            CreatedAt: DateTimeOffset.UtcNow,
+            Steps: [new RecipeStepResponse(1, 1, "Boil water", 300)],
+            Ingredients: [new RecipeIngredientResponse(1, 5, "Pasta", 300, "g", false)]
+        );
+
+        _service.Setup(s => s.UpdateAsync(10, request)).ReturnsAsync(detail);
+
+        var result = await _controller.Update(10, request);
+
+        var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.Value.Should().BeEquivalentTo(detail);
+    }
+
+    [Fact]
+    public async Task Update_WhenMissing_PropagatesNotFoundException()
+    {
+        var request = new UpdateRecipeRequest("Title", null, null, null, null, null, [], []);
+        _service.Setup(s => s.UpdateAsync(42, request)).ThrowsAsync(new NotFoundException("Recipe 42 not found"));
+
+        var act = () => _controller.Update(42, request);
+
+        await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    [Fact]
+    public async Task Delete_ReturnsNoContent()
+    {
+        _service.Setup(s => s.DeleteAsync(10)).Returns(Task.CompletedTask);
+
+        var result = await _controller.Delete(10);
+
+        result.Should().BeOfType<NoContentResult>();
+    }
+
+    [Fact]
+    public async Task Delete_WhenMissing_PropagatesNotFoundException()
+    {
+        _service.Setup(s => s.DeleteAsync(42)).ThrowsAsync(new NotFoundException("Recipe 42 not found"));
+
+        var act = () => _controller.Delete(42);
+
+        await act.Should().ThrowAsync<NotFoundException>();
+    }
 }
