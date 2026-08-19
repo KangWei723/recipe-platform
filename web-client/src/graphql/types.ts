@@ -52,13 +52,15 @@ export interface Ingredient {
   defaultUnit: string;
 }
 
+export interface MeasurementUnit {
+  code: string;
+  label: string;
+  isFractionalFriendly: boolean;
+}
+
 export interface PantryItem {
-  id: number;
   ingredientId: number;
   ingredientName: string;
-  quantity: number;
-  unit: string;
-  expiryDate: string | null;
   updatedAt: string;
 }
 
@@ -84,4 +86,5 @@ export interface StoreOffer {
   price: number | null;
   currency: string | null;
   isSimulated: boolean;
+  placeId: string | null;
 }

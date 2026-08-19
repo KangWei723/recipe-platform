@@ -8,7 +8,9 @@ import {
   UPDATE_RECIPE_MUTATION,
 } from '../graphql/queries';
 import type { Ingredient, RecipeDetail } from '../graphql/types';
+import { useUnits } from '../graphql/useUnits';
 import { formatMutationError } from '../utils/errors';
+import { formatQuantity, parseQuantityInput } from '../utils/quantity';
 
 interface IngredientRow {
   key: number;
@@ -62,6 +64,7 @@ export function RecipeFormPage() {
   const [{ data: ingredientsData, fetching: ingredientsFetching }] = useQuery<{ ingredients: Ingredient[] }>({
     query: INGREDIENTS_QUERY,
   });
+  const { isFractionalFriendly, fetching: unitsFetching } = useUnits();
   const [, createRecipe] = useMutation<{ createRecipe: { id: number; title: string } }>(CREATE_RECIPE_MUTATION);
   const [, updateRecipe] = useMutation<{ updateRecipe: { id: number; title: string } }>(UPDATE_RECIPE_MUTATION);
 
@@ -79,7 +82,7 @@ export function RecipeFormPage() {
   const ingredients = ingredientsData?.ingredients ?? [];
 
   useEffect(() => {
-    if (!isEdit || prefilled || !recipeData?.recipe) return;
+    if (!isEdit || prefilled || !recipeData?.recipe || unitsFetching) return;
 
     const recipe = recipeData.recipe;
     setTitle(recipe.title);
@@ -92,7 +95,7 @@ export function RecipeFormPage() {
         ? recipe.ingredients.map((i) => ({
             key: nextRowKey++,
             ingredientId: String(i.ingredientId),
-            quantity: String(i.quantity),
+            quantity: formatQuantity(i.quantity, isFractionalFriendly(i.unit)),
             unit: i.unit,
             optional: i.optional,
           }))
@@ -110,7 +113,7 @@ export function RecipeFormPage() {
         : [emptyStepRow()],
     );
     setPrefilled(true);
-  }, [isEdit, prefilled, recipeData]);
+  }, [isEdit, prefilled, recipeData, unitsFetching, isFractionalFriendly]);
 
   function updateIngredientRow(key: number, patch: Partial<IngredientRow>) {
     setIngredientRows((rows) => rows.map((row) => (row.key === key ? { ...row, ...patch } : row)));
@@ -118,7 +121,17 @@ export function RecipeFormPage() {
 
   function handleIngredientSelect(key: number, ingredientId: string) {
     const selected = ingredients.find((i) => String(i.id) === ingredientId);
-    updateIngredientRow(key, { ingredientId, unit: selected ? selected.defaultUnit : '' });
+    const newUnit = selected ? selected.defaultUnit : '';
+    setIngredientRows((rows) =>
+      rows.map((row) => {
+        if (row.key !== key) return row;
+        // A quantity typed under the old unit's style (e.g. a mixed number like "2 1/2" for a
+        // fractional-friendly unit) isn't valid input once the unit style changes, so drop it
+        // rather than carry over a string the new input can't parse.
+        const categoryChanged = isFractionalFriendly(row.unit) !== isFractionalFriendly(newUnit);
+        return { ...row, ingredientId, unit: newUnit, quantity: categoryChanged ? '' : row.quantity };
+      }),
+    );
   }
 
   function updateStepRow(key: number, patch: Partial<StepRow>) {
@@ -137,6 +150,11 @@ export function RecipeFormPage() {
       setError('Every ingredient needs an ingredient, quantity, and unit.');
       return;
     }
+    const parsedQuantities = ingredientRows.map((r) => parseQuantityInput(r.quantity, isFractionalFriendly(r.unit)));
+    if (parsedQuantities.some((q) => q === null)) {
+      setError('Quantity must be a number (e.g. "2" or, for this unit, a mixed number like "2 1/2").');
+      return;
+    }
     if (stepRows.some((r) => !r.instruction.trim())) {
       setError('Every step needs an instruction.');
       return;
@@ -148,9 +166,9 @@ export function RecipeFormPage() {
       servings: servings ? Number(servings) : null,
       prepTimeMin: prepTimeMin ? Number(prepTimeMin) : null,
       cookTimeMin: cookTimeMin ? Number(cookTimeMin) : null,
-      ingredients: ingredientRows.map((r) => ({
+      ingredients: ingredientRows.map((r, index) => ({
         ingredientId: Number(r.ingredientId),
-        quantity: Number(r.quantity),
+        quantity: parsedQuantities[index] as number,
         unit: r.unit,
         optional: r.optional,
       })),
@@ -245,23 +263,28 @@ export function RecipeFormPage() {
             </label>
             <label>
               Quantity
-              <input
-                type="number"
-                min="0"
-                step="any"
-                className="input-mono"
-                value={row.quantity}
-                onChange={(e) => updateIngredientRow(row.key, { quantity: e.target.value })}
-              />
+              {isFractionalFriendly(row.unit) ? (
+                <input
+                  type="text"
+                  className="input-mono"
+                  placeholder="e.g. 2 1/2"
+                  value={row.quantity}
+                  onChange={(e) => updateIngredientRow(row.key, { quantity: e.target.value })}
+                />
+              ) : (
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  className="input-mono"
+                  value={row.quantity}
+                  onChange={(e) => updateIngredientRow(row.key, { quantity: e.target.value })}
+                />
+              )}
             </label>
             <label>
               Unit
-              <input
-                type="text"
-                className="input-mono"
-                value={row.unit}
-                onChange={(e) => updateIngredientRow(row.key, { unit: e.target.value })}
-              />
+              <input type="text" className="input-mono" value={row.unit} readOnly />
             </label>
             <label>
               Optional

@@ -423,6 +423,13 @@ label {
   gap: 6px;
 }
 
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
 .pantry-item-row {
   display: flex;
   justify-content: space-between;
@@ -432,10 +439,13 @@ label {
   border-bottom: 1px solid var(--color-muted-tint);
 }
 
-.pantry-qty {
-  font-family: var(--font-mono);
-  font-size: 0.9rem;
-  margin-right: 4px;
+.pantry-checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-muted-tint);
+  cursor: pointer;
 }
 
 .error-message {

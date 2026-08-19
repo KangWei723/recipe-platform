@@ -8,6 +8,7 @@ import {
   UPDATE_INGREDIENT_MUTATION,
 } from '../graphql/queries';
 import type { Ingredient } from '../graphql/types';
+import { useUnits } from '../graphql/useUnits';
 import { formatMutationError } from '../utils/errors';
 
 interface EditState {
@@ -22,6 +23,7 @@ function toEditState(ingredient: Ingredient): EditState {
 
 export function IngredientsPage() {
   const isAdmin = useIsAdmin();
+  const { units, fetching: unitsFetching } = useUnits();
 
   const [{ data, fetching, error }, refetch] = useQuery<{ ingredients: Ingredient[] }>({
     query: INGREDIENTS_QUERY,
@@ -140,12 +142,19 @@ export function IngredientsPage() {
         </label>
         <label>
           Default unit
-          <input
-            type="text"
+          <select
             className="input-mono"
             value={defaultUnit}
             onChange={(e) => setDefaultUnit(e.target.value)}
-          />
+            disabled={unitsFetching}
+          >
+            <option value="">Select...</option>
+            {units.map((u) => (
+              <option key={u.code} value={u.code}>
+                {u.label}
+              </option>
+            ))}
+          </select>
         </label>
         <button type="submit" className="btn btn-primary" disabled={submitting}>
           {submitting ? 'Adding...' : 'Add ingredient'}
@@ -173,12 +182,18 @@ export function IngredientsPage() {
                   value={editState.category}
                   onChange={(e) => setEditState({ ...editState, category: e.target.value })}
                 />
-                <input
-                  type="text"
+                <select
                   className="input-mono"
                   value={editState.defaultUnit}
                   onChange={(e) => setEditState({ ...editState, defaultUnit: e.target.value })}
-                />
+                >
+                  <option value="">Select...</option>
+                  {units.map((u) => (
+                    <option key={u.code} value={u.code}>
+                      {u.label}
+                    </option>
+                  ))}
+                </select>
               </span>
               <span>
                 <button type="button" className="btn btn-primary btn-sm" onClick={() => handleSaveEdit(ingredient.id)}>

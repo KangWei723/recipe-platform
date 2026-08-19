@@ -49,6 +49,16 @@ export const RECIPE_QUERY = gql`
   }
 `;
 
+export const UNITS_QUERY = gql`
+  query Units {
+    units {
+      code
+      label
+      isFractionalFriendly
+    }
+  }
+`;
+
 export const INGREDIENTS_QUERY = gql`
   query Ingredients {
     ingredients {
@@ -63,44 +73,26 @@ export const INGREDIENTS_QUERY = gql`
 export const PANTRY_ITEMS_QUERY = gql`
   query PantryItems {
     pantryItems {
-      id
       ingredientId
       ingredientName
-      quantity
-      unit
-      expiryDate
       updatedAt
     }
   }
 `;
 
 export const UPSERT_PANTRY_ITEM_MUTATION = gql`
-  mutation UpsertPantryItem(
-    $ingredientId: Long!
-    $quantity: Decimal!
-    $unit: String!
-    $expiryDate: LocalDate
-  ) {
-    upsertPantryItem(
-      ingredientId: $ingredientId
-      quantity: $quantity
-      unit: $unit
-      expiryDate: $expiryDate
-    ) {
-      id
+  mutation UpsertPantryItem($ingredientId: Long!) {
+    upsertPantryItem(ingredientId: $ingredientId) {
       ingredientId
       ingredientName
-      quantity
-      unit
-      expiryDate
       updatedAt
     }
   }
 `;
 
 export const REMOVE_PANTRY_ITEM_MUTATION = gql`
-  mutation RemovePantryItem($itemId: Long!) {
-    removePantryItem(itemId: $itemId)
+  mutation RemovePantryItem($ingredientId: Long!) {
+    removePantryItem(ingredientId: $ingredientId)
   }
 `;
 
@@ -201,6 +193,7 @@ export const NEARBY_STORES_QUERY = gql`
       price
       currency
       isSimulated
+      placeId
     }
   }
 `;

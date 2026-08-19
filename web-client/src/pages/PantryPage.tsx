@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { useMutation, useQuery } from 'urql';
 import {
   INGREDIENTS_QUERY,
@@ -20,119 +20,58 @@ export function PantryPage() {
   const [, upsertPantryItem] = useMutation(UPSERT_PANTRY_ITEM_MUTATION);
   const [, removePantryItem] = useMutation(REMOVE_PANTRY_ITEM_MUTATION);
 
-  const [ingredientId, setIngredientId] = useState('');
-  const [quantity, setQuantity] = useState('');
-  const [unit, setUnit] = useState('');
-  const [expiryDate, setExpiryDate] = useState('');
-  const [formError, setFormError] = useState<string | null>(null);
+  const [pendingIds, setPendingIds] = useState<Set<number>>(new Set());
+  const [error, setError] = useState<string | null>(null);
 
   const ingredients = ingredientsData?.ingredients ?? [];
+  const pantryIngredientIds = new Set(pantryData?.pantryItems.map((item) => item.ingredientId) ?? []);
 
-  function handleIngredientChange(newIngredientId: string) {
-    setIngredientId(newIngredientId);
-    const selected = ingredients.find((i) => String(i.id) === newIngredientId);
-    if (selected) {
-      setUnit(selected.defaultUnit);
-    }
-  }
+  async function handleToggle(ingredientId: number, currentlyInPantry: boolean) {
+    setError(null);
+    setPendingIds((ids) => new Set(ids).add(ingredientId));
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setFormError(null);
+    const result = currentlyInPantry
+      ? await removePantryItem({ ingredientId })
+      : await upsertPantryItem({ ingredientId });
 
-    if (!ingredientId || !quantity || !unit) {
-      setFormError('Ingredient, quantity, and unit are required.');
-      return;
-    }
-
-    const result = await upsertPantryItem({
-      ingredientId: Number(ingredientId),
-      quantity: Number(quantity),
-      unit,
-      expiryDate: expiryDate || null,
+    setPendingIds((ids) => {
+      const next = new Set(ids);
+      next.delete(ingredientId);
+      return next;
     });
 
     if (result.error) {
-      setFormError(result.error.message);
+      setError(result.error.message);
       return;
     }
 
-    setIngredientId('');
-    setQuantity('');
-    setUnit('');
-    setExpiryDate('');
     refetchPantryItems({ requestPolicy: 'network-only' });
-  }
-
-  async function handleRemove(itemId: number) {
-    const result = await removePantryItem({ itemId });
-    if (!result.error) {
-      refetchPantryItems({ requestPolicy: 'network-only' });
-    }
   }
 
   return (
     <div>
       <h1>Pantry</h1>
+      <p>Check off the ingredients you currently have on hand.</p>
 
-      <form className="pantry-form" onSubmit={handleSubmit}>
-        <label>
-          Ingredient
-          <select
-            value={ingredientId}
-            onChange={(e) => handleIngredientChange(e.target.value)}
-            disabled={ingredientsFetching}
-          >
-            <option value="">Select...</option>
-            {ingredients.map((i) => (
-              <option key={i.id} value={i.id}>
-                {i.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Quantity
-          <input
-            type="number"
-            min="0"
-            step="any"
-            className="input-mono"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-          />
-        </label>
-        <label>
-          Unit
-          <input type="text" className="input-mono" value={unit} onChange={(e) => setUnit(e.target.value)} />
-        </label>
-        <label>
-          Expiry date (optional)
-          <input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
-        </label>
-        <button type="submit" className="btn btn-primary">
-          Add / Update
-        </button>
-      </form>
-      {formError && <p className="error-message">{formError}</p>}
-
-      {pantryFetching && <p>Loading pantry...</p>}
+      {error && <p className="error-message">{error}</p>}
+      {(pantryFetching || ingredientsFetching) && <p>Loading pantry...</p>}
       {pantryError && <p className="error-message">Failed to load pantry: {pantryError.message}</p>}
-      {pantryData?.pantryItems.length === 0 && <p>Your pantry is empty.</p>}
-      {pantryData?.pantryItems.map((item) => (
-        <div key={item.id} className="pantry-item-row">
-          <span>
-            <span className="pantry-qty">
-              {item.quantity} {item.unit}
-            </span>
-            {item.ingredientName}
-            {item.expiryDate ? ` (expires ${item.expiryDate})` : ''}
-          </span>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleRemove(item.id)}>
-            Remove
-          </button>
-        </div>
-      ))}
+      {!pantryFetching && !ingredientsFetching && ingredients.length === 0 && <p>No ingredients yet.</p>}
+
+      {ingredients.map((ingredient) => {
+        const inPantry = pantryIngredientIds.has(ingredient.id);
+        return (
+          <label key={ingredient.id} className="pantry-checklist-item">
+            <input
+              type="checkbox"
+              checked={inPantry}
+              disabled={pendingIds.has(ingredient.id)}
+              onChange={() => handleToggle(ingredient.id, inPantry)}
+            />
+            {ingredient.name}
+          </label>
+        );
+      })}
     </div>
   );
 }

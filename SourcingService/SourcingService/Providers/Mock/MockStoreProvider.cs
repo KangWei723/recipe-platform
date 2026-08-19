@@ -26,7 +26,8 @@ public class MockStoreProvider : IStoreProvider
                 Lng: lng,
                 Price: price,
                 Currency: "USD",
-                IsSimulated: true)
+                IsSimulated: true,
+                PlaceId: null)
         ];
 
         return Task.FromResult(offers);

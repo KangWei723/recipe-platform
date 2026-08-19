@@ -31,7 +31,8 @@ public class KrogerStoreProvider(IKrogerClient krogerClient) : IStoreProvider
             Lng: location.Geolocation?.Longitude,
             Price: price,
             Currency: price is null ? null : "USD",
-            IsSimulated: false);
+            IsSimulated: false,
+            PlaceId: null);
     }
 
     private static string? FormatAddress(KrogerAddress? address) =>

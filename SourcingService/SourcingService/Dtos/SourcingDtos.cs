@@ -8,7 +8,8 @@ public record StoreOffer(
     double? Lng,
     decimal? Price,
     string? Currency,
-    bool IsSimulated
+    bool IsSimulated,
+    string? PlaceId = null
 );
 
 public record ProviderDiagnostic(

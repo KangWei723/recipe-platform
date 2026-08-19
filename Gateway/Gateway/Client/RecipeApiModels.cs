@@ -100,3 +100,9 @@ public record UpdateIngredientDto(
     string? Category,
     string DefaultUnit
 );
+
+public record MeasurementUnitDto(
+    string Code,
+    string Label,
+    bool IsFractionalFriendly
+);

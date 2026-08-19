@@ -39,7 +39,7 @@ public class PantryItemsServiceTests
     }
 
     [Fact]
-    public async Task GetMissingIngredientsAsync_ReturnsOnlyInsufficientNonOptionalIngredients()
+    public async Task GetMissingIngredientsAsync_ReturnsNonOptionalIngredientsNotInPantry()
     {
         var recipe = new RecipeDetailDto(
             Id: 9,
@@ -56,15 +56,17 @@ public class PantryItemsServiceTests
 
         _repository.Setup(r => r.GetForUserAsync(1)).ReturnsAsync(
         [
-            new PantryItem { Id = 1, UserId = 1, IngredientId = 7, Quantity = 100, Unit = "g", UpdatedAt = DateTimeOffset.UtcNow }
+            // Flour (7) is present -- any presence satisfies it, regardless of how much the
+            // recipe asks for, since pantry no longer tracks quantity at all.
+            new PantryItem { Id = 1, UserId = 1, IngredientId = 7, UpdatedAt = DateTimeOffset.UtcNow }
             // No pantry entry at all for Yeast (id 8) or Sugar (id 9).
         ]);
 
         var result = await _service.GetMissingIngredientsAsync(userId: 1, recipeId: 9);
 
-        result.MissingIngredients.Should().HaveCount(2);
-        result.MissingIngredients.Should().ContainSingle(m => m.IngredientId == 7 && m.AvailableQuantity == 100);
-        result.MissingIngredients.Should().ContainSingle(m => m.IngredientId == 8 && m.AvailableQuantity == 0);
+        result.MissingIngredients.Should().HaveCount(1);
+        result.MissingIngredients.Should().ContainSingle(m => m.IngredientId == 8);
+        result.MissingIngredients.Should().NotContain(m => m.IngredientId == 7);
         result.MissingIngredients.Should().NotContain(m => m.IngredientId == 9);
     }
 
@@ -73,7 +75,7 @@ public class PantryItemsServiceTests
     {
         _recipeClient.Setup(c => c.GetIngredientAsync(123, default)).ReturnsAsync((IngredientDto?)null);
 
-        var act = () => _service.UpsertAsync(1, new UpsertPantryItemRequest(123, 100, "g", null));
+        var act = () => _service.UpsertAsync(1, 123);
 
         await act.Should().ThrowAsync<ValidationException>();
     }

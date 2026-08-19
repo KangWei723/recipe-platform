@@ -38,23 +38,22 @@ public class PantryItemRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task UpsertAsync_SecondCallForSameIngredient_UpdatesRatherThanDuplicates()
+    public async Task UpsertAsync_SecondCallForSameIngredient_DoesNotDuplicate()
     {
-        await _repository.UpsertAsync(userId: 1, ingredientId: 7, quantity: 100, unit: "g", expiryDate: null);
-        await _repository.UpsertAsync(userId: 1, ingredientId: 7, quantity: 250, unit: "g", expiryDate: null);
+        await _repository.UpsertAsync(userId: 1, ingredientId: 7);
+        await _repository.UpsertAsync(userId: 1, ingredientId: 7);
 
         var items = await _repository.GetForUserAsync(1);
 
         items.Should().ContainSingle();
-        items[0].Quantity.Should().Be(250);
     }
 
     [Fact]
     public async Task DeleteAsync_ForDifferentUser_ReturnsFalseAndLeavesItemIntact()
     {
-        var created = await _repository.UpsertAsync(userId: 1, ingredientId: 7, quantity: 100, unit: "g", expiryDate: null);
+        var created = await _repository.UpsertAsync(userId: 1, ingredientId: 7);
 
-        var deleted = await _repository.DeleteAsync(userId: 2, itemId: created.Id);
+        var deleted = await _repository.DeleteAsync(userId: 2, ingredientId: 7);
 
         deleted.Should().BeFalse();
         (await _repository.GetByIdAsync(created.Id)).Should().NotBeNull();

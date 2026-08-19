@@ -38,7 +38,7 @@ public class PantryControllerTests
     {
         var items = new List<PantryItemResponse>
         {
-            new(1, 42, 7, "Flour", 500, "g", null, DateTimeOffset.UtcNow)
+            new(7, "Flour", DateTimeOffset.UtcNow)
         };
         _service.Setup(s => s.GetForUserAsync(42)).ReturnsAsync(items);
 
@@ -51,12 +51,12 @@ public class PantryControllerTests
     [Fact]
     public async Task Delete_ReturnsNoContent()
     {
-        _service.Setup(s => s.DeleteAsync(42, 1)).Returns(Task.CompletedTask);
+        _service.Setup(s => s.DeleteAsync(42, 7)).Returns(Task.CompletedTask);
 
-        var result = await _controller.Delete(1, CancellationToken.None);
+        var result = await _controller.Delete(7, CancellationToken.None);
 
         result.Should().BeOfType<NoContentResult>();
-        _service.Verify(s => s.DeleteAsync(42, 1), Times.Once);
+        _service.Verify(s => s.DeleteAsync(42, 7), Times.Once);
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class PantryControllerTests
         var response = new MissingIngredientsResponse(
             RecipeId: 9,
             RecipeTitle: "Bread",
-            MissingIngredients: [new MissingIngredientResponse(7, "Flour", 500, 100, "g")]
+            MissingIngredients: [new MissingIngredientResponse(7, "Flour")]
         );
         _service.Setup(s => s.GetMissingIngredientsAsync(42, 9)).ReturnsAsync(response);
 

@@ -11,7 +11,8 @@ public record StoreOfferDto(
     double? Lng,
     decimal? Price,
     string? Currency,
-    bool IsSimulated
+    bool IsSimulated,
+    string? PlaceId
 );
 
 public record NearbySourcingDto(

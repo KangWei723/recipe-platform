@@ -1,9 +1,11 @@
 import { useQuery } from 'urql';
 import { Link } from 'react-router-dom';
+import { useIsAdmin } from '../auth/useIsAdmin';
 import { RECIPES_QUERY } from '../graphql/queries';
 import type { RecipeSummary } from '../graphql/types';
 
 export function RecipeListPage() {
+  const isAdmin = useIsAdmin();
   const [{ data, fetching, error }] = useQuery<{ recipes: RecipeSummary[] }>({
     query: RECIPES_QUERY,
   });
@@ -13,7 +15,14 @@ export function RecipeListPage() {
 
   return (
     <div>
-      <h1>Recipes</h1>
+      <div className="page-header">
+        <h1>Recipes</h1>
+        {isAdmin && (
+          <Link to="/recipes/new" className="btn btn-primary">
+            Add Recipe
+          </Link>
+        )}
+      </div>
       {data?.recipes.length === 0 && <p>No recipes yet.</p>}
       {data?.recipes.map((recipe) => (
         <Link key={recipe.id} to={`/recipes/${recipe.id}`} className="recipe-card">

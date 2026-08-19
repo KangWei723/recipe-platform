@@ -13,6 +13,8 @@ public class SourcingAggregatorService(
     ILogger<SourcingAggregatorService> logger) : ISourcingAggregatorService
 {
     private static readonly TimeSpan ProviderTimeout = TimeSpan.FromSeconds(3);
+    private const int MaxResults = 8;
+    private const double EarthRadiusMiles = 3958.8;
 
     public async Task<NearbySourcingResponse> FindNearbyAsync(
         string ingredientName, double lat, double lng, CancellationToken cancellationToken)
@@ -31,7 +33,14 @@ public class SourcingAggregatorService(
         var calls = await Task.WhenAll(providers.Select(
             provider => CallProviderAsync(provider, ingredientName, lat, lng, cancellationToken)));
 
-        var offers = calls.SelectMany(call => call.Offers).ToList();
+        // Sorted/capped here (rather than left to the client) so every caller --
+        // the standalone lookup and the nested per-ingredient resolver alike --
+        // gets the closest MaxResults stores using the same origin coordinate
+        // that was searched from, and so cached entries store the final list.
+        var offers = calls.SelectMany(call => call.Offers)
+            .OrderBy(offer => DistanceMiles(lat, lng, offer.Lat, offer.Lng) ?? double.MaxValue)
+            .Take(MaxResults)
+            .ToList();
         var diagnostics = calls.Select(call => call.Diagnostic).ToList();
         var usedMockFallback = false;
 
@@ -99,4 +108,21 @@ public class SourcingAggregatorService(
                 new ProviderDiagnostic(provider.Name, ProviderOutcome.Failed, stopwatch.ElapsedMilliseconds, ex.Message));
         }
     }
+
+    private static double? DistanceMiles(double originLat, double originLng, double? lat, double? lng)
+    {
+        if (lat is null || lng is null)
+        {
+            return null;
+        }
+
+        var dLat = ToRadians(lat.Value - originLat);
+        var dLng = ToRadians(lng.Value - originLng);
+        var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                Math.Cos(ToRadians(originLat)) * Math.Cos(ToRadians(lat.Value)) *
+                Math.Sin(dLng / 2) * Math.Sin(dLng / 2);
+        return EarthRadiusMiles * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+    }
+
+    private static double ToRadians(double degrees) => degrees * Math.PI / 180;
 }

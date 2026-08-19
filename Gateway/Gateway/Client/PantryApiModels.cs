@@ -5,10 +5,7 @@ namespace Gateway.Client;
 
 public record MissingIngredientDto(
     long IngredientId,
-    string IngredientName,
-    decimal RequiredQuantity,
-    decimal AvailableQuantity,
-    string Unit
+    string IngredientName
 );
 
 public record MissingIngredientsDto(
@@ -18,19 +15,11 @@ public record MissingIngredientsDto(
 );
 
 public record PantryItemDto(
-    long Id,
-    long UserId,
     long IngredientId,
     string IngredientName,
-    decimal Quantity,
-    string Unit,
-    DateOnly? ExpiryDate,
     DateTimeOffset UpdatedAt
 );
 
 public record UpsertPantryItemDto(
-    long IngredientId,
-    decimal Quantity,
-    string Unit,
-    DateOnly? ExpiryDate
+    long IngredientId
 );

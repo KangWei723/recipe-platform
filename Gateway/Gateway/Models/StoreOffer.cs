@@ -10,4 +10,5 @@ public class StoreOffer
     public decimal? Price { get; init; }
     public string? Currency { get; init; }
     public required bool IsSimulated { get; init; }
+    public string? PlaceId { get; init; }
 }

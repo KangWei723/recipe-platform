@@ -1,6 +1,7 @@
 using Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RecipeService.Domain;
 using RecipeService.Dtos;
 using RecipeService.Services;
 
@@ -14,6 +15,15 @@ public class IngredientsController(IIngredientsService service) : ControllerBase
     [HttpGet]
     public async Task<ActionResult<List<IngredientResponse>>> GetAll() =>
         Ok(await service.GetAllAsync());
+
+    // The catalog default-unit dropdowns (Manage Ingredients, Add Recipe) are populated from
+    // here rather than each client hardcoding its own copy of the unit list -- see
+    // RecipeService.Domain.MeasurementUnits.
+    [HttpGet("units")]
+    public ActionResult<List<MeasurementUnitResponse>> GetUnits() =>
+        Ok(MeasurementUnits.All
+            .Select(u => new MeasurementUnitResponse(u.Code, u.Label, u.Style == QuantityInputStyle.FractionalFriendly))
+            .ToList());
 
     [HttpGet("{id:long}")]
     public async Task<ActionResult<IngredientResponse>> GetById(long id) =>

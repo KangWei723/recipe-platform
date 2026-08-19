@@ -10,8 +10,5 @@ public record IngredientMissingEvent(
     long RecipeId,
     long IngredientId,
     string IngredientName,
-    decimal RequiredQuantity,
-    decimal AvailableQuantity,
-    string Unit,
     DateTimeOffset OccurredAt
 );

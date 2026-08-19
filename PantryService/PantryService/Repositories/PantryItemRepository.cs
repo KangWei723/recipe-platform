@@ -19,39 +19,34 @@ public class PantryItemRepository(PantryDbContext context) : IPantryItemReposito
     public Task<PantryItem?> GetByIdAsync(long id) =>
         context.PantryItems.FirstOrDefaultAsync(p => p.Id == id);
 
-    public async Task<PantryItem> UpsertAsync(
-        long userId, long ingredientId, decimal quantity, string unit, DateOnly? expiryDate)
+    // Presence-only, so there's nothing to update on a repeat call besides the touch
+    // timestamp -- calling this twice for the same ingredient just confirms it's still there.
+    public async Task<PantryItem> UpsertAsync(long userId, long ingredientId)
     {
         var existing = await GetAsync(userId, ingredientId);
         if (existing is not null)
         {
-            existing.Quantity = quantity;
-            existing.Unit = unit;
-            existing.ExpiryDate = expiryDate;
             existing.UpdatedAt = DateTimeOffset.UtcNow;
+            await context.SaveChangesAsync();
+            return existing;
         }
-        else
+
+        existing = new PantryItem
         {
-            existing = new PantryItem
-            {
-                UserId = userId,
-                IngredientId = ingredientId,
-                Quantity = quantity,
-                Unit = unit,
-                ExpiryDate = expiryDate,
-                UpdatedAt = DateTimeOffset.UtcNow
-            };
-            context.PantryItems.Add(existing);
-        }
+            UserId = userId,
+            IngredientId = ingredientId,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+        context.PantryItems.Add(existing);
 
         await context.SaveChangesAsync();
         return existing;
     }
 
-    public async Task<bool> DeleteAsync(long userId, long itemId)
+    public async Task<bool> DeleteAsync(long userId, long ingredientId)
     {
         var item = await context.PantryItems
-            .FirstOrDefaultAsync(p => p.Id == itemId && p.UserId == userId);
+            .FirstOrDefaultAsync(p => p.UserId == userId && p.IngredientId == ingredientId);
         if (item is null)
         {
             return false;

@@ -27,14 +27,14 @@ public class PantryController(IPantryItemsService service, ICurrentUserResolver 
         [FromBody] UpsertPantryItemRequest request, CancellationToken cancellationToken)
     {
         var userId = await currentUser.ResolveUserIdAsync(User, cancellationToken);
-        return Ok(await service.UpsertAsync(userId, request));
+        return Ok(await service.UpsertAsync(userId, request.IngredientId));
     }
 
-    [HttpDelete("items/{itemId:long}")]
-    public async Task<IActionResult> Delete(long itemId, CancellationToken cancellationToken)
+    [HttpDelete("items/{ingredientId:long}")]
+    public async Task<IActionResult> Delete(long ingredientId, CancellationToken cancellationToken)
     {
         var userId = await currentUser.ResolveUserIdAsync(User, cancellationToken);
-        await service.DeleteAsync(userId, itemId);
+        await service.DeleteAsync(userId, ingredientId);
         return NoContent();
     }
 

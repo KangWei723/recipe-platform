@@ -28,16 +28,16 @@ public class PantryServiceClient(HttpClient httpClient) : IPantryServiceClient
     }
 
     public async Task<PantryItemDto> UpsertAsync(
-        UpsertPantryItemDto request, CancellationToken cancellationToken = default)
+        long ingredientId, CancellationToken cancellationToken = default)
     {
         const string requestUri = "/api/pantry/items";
-        var response = await SendAsync(HttpMethod.Put, requestUri, request, cancellationToken);
+        var response = await SendAsync(HttpMethod.Put, requestUri, new UpsertPantryItemDto(ingredientId), cancellationToken);
         return await ReadOrThrowAsync<PantryItemDto>(response, requestUri, cancellationToken);
     }
 
-    public async Task DeleteAsync(long itemId, CancellationToken cancellationToken = default)
+    public async Task DeleteAsync(long ingredientId, CancellationToken cancellationToken = default)
     {
-        var requestUri = $"/api/pantry/items/{itemId}";
+        var requestUri = $"/api/pantry/items/{ingredientId}";
         var response = await SendAsync(HttpMethod.Delete, requestUri, cancellationToken: cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {

@@ -11,7 +11,8 @@ public record GooglePlaceResult(
     [property: JsonPropertyName("place_id")] string PlaceId,
     [property: JsonPropertyName("name")] string? Name,
     [property: JsonPropertyName("vicinity")] string? Vicinity,
-    [property: JsonPropertyName("geometry")] GooglePlaceGeometry? Geometry
+    [property: JsonPropertyName("geometry")] GooglePlaceGeometry? Geometry,
+    [property: JsonPropertyName("types")] List<string>? Types
 );
 
 public record GooglePlaceGeometry(

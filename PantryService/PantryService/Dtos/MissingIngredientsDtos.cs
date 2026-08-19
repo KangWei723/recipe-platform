@@ -6,10 +6,7 @@ namespace PantryService.Dtos;
 // of returning the list synchronously (see docs/design.md).
 public record MissingIngredientResponse(
     long IngredientId,
-    string IngredientName,
-    decimal RequiredQuantity,
-    decimal AvailableQuantity,
-    string Unit
+    string IngredientName
 );
 
 public record MissingIngredientsResponse(

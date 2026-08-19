@@ -6,13 +6,12 @@
 -- than joining across schemas"), cross-service references are resolved over
 -- HTTP (see PantryService/Client/RecipeServiceClient.cs), never via SQL join.
 
+-- Presence-only: pantry tracking answers "does the user have this ingredient or not",
+-- nothing more. No quantity/unit/expiry_date.
 CREATE TABLE pantry_items (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
     ingredient_id BIGINT NOT NULL,
-    quantity NUMERIC(10, 2) NOT NULL,
-    unit VARCHAR(50) NOT NULL,
-    expiry_date DATE,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (user_id, ingredient_id)
 );

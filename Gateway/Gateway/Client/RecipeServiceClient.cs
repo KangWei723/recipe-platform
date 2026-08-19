@@ -60,6 +60,13 @@ public class RecipeServiceClient(HttpClient httpClient) : IRecipeServiceClient
         await ThrowIfErrorAsync(response, requestUri, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<MeasurementUnitDto>> GetUnitsAsync(CancellationToken cancellationToken = default)
+    {
+        const string requestUri = "/api/ingredients/units";
+        var response = await SendAsync(HttpMethod.Get, requestUri, cancellationToken: cancellationToken);
+        return await ReadOrThrowAsync<List<MeasurementUnitDto>>(response, requestUri, cancellationToken);
+    }
+
     public async Task<IngredientDto> CreateIngredientAsync(
         CreateIngredientDto request, CancellationToken cancellationToken = default)
     {

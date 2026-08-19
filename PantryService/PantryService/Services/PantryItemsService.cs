@@ -20,23 +20,22 @@ public class PantryItemsService(
         return items.Select(i => ToResponse(i, ingredientNames)).ToList();
     }
 
-    public async Task<PantryItemResponse> UpsertAsync(long userId, UpsertPantryItemRequest request)
+    public async Task<PantryItemResponse> UpsertAsync(long userId, long ingredientId)
     {
-        var ingredient = await recipeServiceClient.GetIngredientAsync(request.IngredientId)
-            ?? throw new ValidationException($"Ingredient {request.IngredientId} does not exist");
+        var ingredient = await recipeServiceClient.GetIngredientAsync(ingredientId)
+            ?? throw new ValidationException($"Ingredient {ingredientId} does not exist");
 
-        var item = await repository.UpsertAsync(
-            userId, request.IngredientId, request.Quantity, request.Unit, request.ExpiryDate);
+        var item = await repository.UpsertAsync(userId, ingredientId);
 
         return ToResponse(item, ingredient.Name);
     }
 
-    public async Task DeleteAsync(long userId, long itemId)
+    public async Task DeleteAsync(long userId, long ingredientId)
     {
-        var deleted = await repository.DeleteAsync(userId, itemId);
+        var deleted = await repository.DeleteAsync(userId, ingredientId);
         if (!deleted)
         {
-            throw new NotFoundException($"Pantry item {itemId} not found for user {userId}");
+            throw new NotFoundException($"Ingredient {ingredientId} not found in pantry for user {userId}");
         }
     }
 
@@ -46,17 +45,14 @@ public class PantryItemsService(
             ?? throw new NotFoundException($"Recipe {recipeId} not found");
 
         var pantryItems = await repository.GetForUserAsync(userId);
-        var pantryByIngredient = pantryItems.ToDictionary(p => p.IngredientId, p => p.Quantity);
+        var pantryIngredientIds = pantryItems.Select(p => p.IngredientId).ToHashSet();
 
+        // Presence-only: an ingredient is missing if it's simply not in the pantry at all --
+        // there's no "have some but not enough" case anymore since pantry doesn't track quantity.
         var missing = recipe.Ingredients
             .Where(ri => !ri.Optional)
-            .Where(ri => !pantryByIngredient.TryGetValue(ri.IngredientId, out var have) || have < ri.Quantity)
-            .Select(ri => new MissingIngredientResponse(
-                ri.IngredientId,
-                ri.IngredientName,
-                ri.Quantity,
-                pantryByIngredient.GetValueOrDefault(ri.IngredientId),
-                ri.Unit))
+            .Where(ri => !pantryIngredientIds.Contains(ri.IngredientId))
+            .Select(ri => new MissingIngredientResponse(ri.IngredientId, ri.IngredientName))
             .ToList();
 
         await PublishMissingIngredientEventsAsync(userId, recipe.Id, missing);
@@ -79,9 +75,6 @@ public class PantryItemsService(
                     recipeId,
                     item.IngredientId,
                     item.IngredientName,
-                    item.RequiredQuantity,
-                    item.AvailableQuantity,
-                    item.Unit,
                     DateTimeOffset.UtcNow));
             }
             catch (Exception ex)
@@ -109,14 +102,5 @@ public class PantryItemsService(
         ToResponse(item, ingredientNames.GetValueOrDefault(item.IngredientId, "Unknown ingredient"));
 
     private static PantryItemResponse ToResponse(PantryItem item, string ingredientName) =>
-        new(
-            item.Id,
-            item.UserId,
-            item.IngredientId,
-            ingredientName,
-            item.Quantity,
-            item.Unit,
-            item.ExpiryDate,
-            item.UpdatedAt
-        );
+        new(item.IngredientId, ingredientName, item.UpdatedAt);
 }

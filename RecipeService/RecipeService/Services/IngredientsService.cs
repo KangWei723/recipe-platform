@@ -24,6 +24,8 @@ public class IngredientsService(IIngredientRepository repository) : IIngredients
 
     public async Task<IngredientResponse> CreateAsync(CreateIngredientRequest request)
     {
+        EnsureValidUnit(request.DefaultUnit);
+
         var ingredient = new Ingredient
         {
             Name = request.Name,
@@ -37,6 +39,8 @@ public class IngredientsService(IIngredientRepository repository) : IIngredients
 
     public async Task<IngredientResponse> UpdateAsync(long id, UpdateIngredientRequest request)
     {
+        EnsureValidUnit(request.DefaultUnit);
+
         var updated = await repository.UpdateAsync(id, ingredient =>
         {
             ingredient.Name = request.Name;
@@ -45,6 +49,17 @@ public class IngredientsService(IIngredientRepository repository) : IIngredients
         }) ?? throw new NotFoundException($"Ingredient {id} not found");
 
         return ToResponse(updated);
+    }
+
+    // Ingredient units are standardized at the source (this service), not left to free text --
+    // the web-client dropdown already restricts to this same catalog, but the server is the
+    // real boundary since any other caller of this API would otherwise bypass it.
+    private static void EnsureValidUnit(string unit)
+    {
+        if (!MeasurementUnits.IsValid(unit))
+        {
+            throw new ValidationException($"Unknown default unit: {unit}");
+        }
     }
 
     public async Task DeleteAsync(long id)

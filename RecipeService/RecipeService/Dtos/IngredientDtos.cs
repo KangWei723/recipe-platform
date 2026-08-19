@@ -20,3 +20,9 @@ public record IngredientResponse(
     string? Category,
     string DefaultUnit
 );
+
+public record MeasurementUnitResponse(
+    string Code,
+    string Label,
+    bool IsFractionalFriendly
+);

@@ -5,13 +5,16 @@ import { useIsAdmin } from '../auth/useIsAdmin';
 import { NearbyStoresFinder } from '../components/NearbyStoresFinder';
 import { DELETE_RECIPE_MUTATION, RECIPE_QUERY } from '../graphql/queries';
 import type { RecipeDetail } from '../graphql/types';
+import { useUnits } from '../graphql/useUnits';
 import { formatMutationError } from '../utils/errors';
+import { formatQuantity } from '../utils/quantity';
 
 export function RecipeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const recipeId = Number(id);
   const navigate = useNavigate();
   const isAdmin = useIsAdmin();
+  const { isFractionalFriendly } = useUnits();
 
   const [{ data, fetching, error }] = useQuery<{ recipe: RecipeDetail | null }, { id: number }>({
     query: RECIPE_QUERY,
@@ -79,7 +82,7 @@ export function RecipeDetailPage() {
             <span className="ingredient-dot" aria-hidden="true" />
             <span className="sr-only">{ingredient.inPantry ? 'In pantry' : 'Missing'}</span>
             <span className="ingredient-qty">
-              {ingredient.quantity} {ingredient.unit}
+              {formatQuantity(ingredient.quantity, isFractionalFriendly(ingredient.unit))} {ingredient.unit}
             </span>
             <span className="ingredient-name">
               {ingredient.ingredientName}

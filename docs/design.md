@@ -81,7 +81,7 @@ Part of the original architecture plan (see qualification-mapping table above), 
 - `recipe_steps(id, recipe_id FK, step_number, instruction, timer_seconds)` — Recipe service
 - `ingredients(id, name, category, default_unit)` — Recipe service (shared catalog)
 - `recipe_ingredients(id, recipe_id FK, ingredient_id FK, quantity, unit, optional)` — Recipe service
-- `pantry_items(id, user_id FK, ingredient_id FK, quantity, unit, expiry_date, updated_at)` — Pantry service
+- `pantry_items(id, user_id FK, ingredient_id FK, updated_at)` — Pantry service (presence-only: has the ingredient or doesn't, no quantity/unit/expiry tracking)
 - `stores(id, place_id, name, address, lat, lng)` — Sourcing service (cached from Google Places)
 - `ingredient_prices(id, ingredient_id FK, store_id FK, price, currency, observed_at)` — Sourcing service
 

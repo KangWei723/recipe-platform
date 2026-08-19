@@ -12,35 +12,27 @@ public class Mutation
     // caller from the forwarded bearer token, not a client-supplied value.
     public async Task<PantryItem> UpsertPantryItemAsync(
         long ingredientId,
-        decimal quantity,
-        string unit,
-        DateOnly? expiryDate,
         [Service] IPantryServiceClient pantryClient,
         CancellationToken cancellationToken)
     {
-        var dto = await pantryClient.UpsertAsync(
-            new UpsertPantryItemDto(ingredientId, quantity, unit, expiryDate),
-            cancellationToken);
+        var dto = await pantryClient.UpsertAsync(ingredientId, cancellationToken);
 
         return new PantryItem
         {
-            Id = dto.Id,
-            UserId = dto.UserId,
             IngredientId = dto.IngredientId,
             IngredientName = dto.IngredientName,
-            Quantity = dto.Quantity,
-            Unit = dto.Unit,
-            ExpiryDate = dto.ExpiryDate,
             UpdatedAt = dto.UpdatedAt
         };
     }
 
+    // Pantry is presence-only, so removing an item is identified by the ingredient itself
+    // rather than an opaque pantry-row id -- there's nothing else about the row to look up by.
     public async Task<bool> RemovePantryItemAsync(
-        long itemId,
+        long ingredientId,
         [Service] IPantryServiceClient pantryClient,
         CancellationToken cancellationToken)
     {
-        await pantryClient.DeleteAsync(itemId, cancellationToken);
+        await pantryClient.DeleteAsync(ingredientId, cancellationToken);
         return true;
     }
 

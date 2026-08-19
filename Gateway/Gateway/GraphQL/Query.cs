@@ -111,14 +111,28 @@ public class Query
         return items
             .Select(i => new PantryItem
             {
-                Id = i.Id,
-                UserId = i.UserId,
                 IngredientId = i.IngredientId,
                 IngredientName = i.IngredientName,
-                Quantity = i.Quantity,
-                Unit = i.Unit,
-                ExpiryDate = i.ExpiryDate,
                 UpdatedAt = i.UpdatedAt
+            })
+            .ToList();
+    }
+
+    // Single source of truth for the ingredient default-unit catalog lives in recipe-service
+    // (RecipeService.Domain.MeasurementUnits) -- the web-client dropdown and its
+    // fractional-vs-decimal quantity input behavior are driven entirely from this instead of
+    // keeping a second hardcoded copy on the frontend.
+    public async Task<IReadOnlyList<MeasurementUnit>> UnitsAsync(
+        [Service] IRecipeServiceClient recipeClient,
+        CancellationToken cancellationToken)
+    {
+        var units = await recipeClient.GetUnitsAsync(cancellationToken);
+        return units
+            .Select(u => new MeasurementUnit
+            {
+                Code = u.Code,
+                Label = u.Label,
+                IsFractionalFriendly = u.IsFractionalFriendly
             })
             .ToList();
     }

@@ -4,6 +4,16 @@ import { NEARBY_STORES_QUERY } from '../graphql/queries';
 import type { StoreOffer } from '../graphql/types';
 import { distanceMiles } from '../utils/distance';
 
+function mapsUrl(store: StoreOffer): string | null {
+  if (store.placeId) {
+    return `https://www.google.com/maps/place/?q=place_id:${store.placeId}`;
+  }
+  if (store.lat !== null && store.lng !== null) {
+    return `https://www.google.com/maps/search/?api=1&query=${store.lat},${store.lng}`;
+  }
+  return null;
+}
+
 type LookupState =
   | { status: 'idle' }
   | { status: 'locating' }
@@ -85,12 +95,24 @@ export function NearbyStoresFinder({ ingredientName }: { ingredientName: string 
               store.lat !== null && store.lng !== null
                 ? distanceMiles(state.userLat, state.userLng, store.lat, store.lng)
                 : null;
-            return (
-              <li key={`${store.providerName}-${store.storeName}-${index}`}>
+            const url = mapsUrl(store);
+            const label = (
+              <>
                 {store.storeName}
                 {distance !== null ? ` — ${distance.toFixed(1)} mi` : ''}
                 {store.price !== null ? ` — ${store.currency ?? '$'}${store.price.toFixed(2)}` : ''}
                 {store.isSimulated ? ' (estimated)' : ''}
+              </>
+            );
+            return (
+              <li key={`${store.providerName}-${store.storeName}-${index}`}>
+                {url ? (
+                  <a href={url} target="_blank" rel="noopener noreferrer">
+                    {label}
+                  </a>
+                ) : (
+                  label
+                )}
               </li>
             );
           })}

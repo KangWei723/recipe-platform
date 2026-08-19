@@ -9,7 +9,7 @@ public interface IPantryServiceClient
 
     Task<IReadOnlyList<PantryItemDto>> GetForUserAsync(CancellationToken cancellationToken = default);
 
-    Task<PantryItemDto> UpsertAsync(UpsertPantryItemDto request, CancellationToken cancellationToken = default);
+    Task<PantryItemDto> UpsertAsync(long ingredientId, CancellationToken cancellationToken = default);
 
-    Task DeleteAsync(long itemId, CancellationToken cancellationToken = default);
+    Task DeleteAsync(long ingredientId, CancellationToken cancellationToken = default);
 }
