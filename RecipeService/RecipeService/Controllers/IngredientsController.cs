@@ -25,6 +25,14 @@ public class IngredientsController(IIngredientsService service) : ControllerBase
             .Select(u => new MeasurementUnitResponse(u.Code, u.Label, u.Style == QuantityInputStyle.FractionalFriendly))
             .ToList());
 
+    // Same reasoning as GetUnits: the Manage Ingredients category dropdown is populated from
+    // here rather than hardcoding its own copy -- see RecipeService.Domain.IngredientCategories.
+    [HttpGet("categories")]
+    public ActionResult<List<IngredientCategoryResponse>> GetCategories() =>
+        Ok(IngredientCategories.All
+            .Select(c => new IngredientCategoryResponse(c.Code, c.Label))
+            .ToList());
+
     [HttpGet("{id:long}")]
     public async Task<ActionResult<IngredientResponse>> GetById(long id) =>
         Ok(await service.GetByIdAsync(id));

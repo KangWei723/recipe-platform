@@ -76,10 +76,10 @@ public class IngredientsServiceTests
                 return ingredient;
             });
 
-        var result = await _service.UpdateAsync(1, new UpdateIngredientRequest("Bread Flour", "Baking", "g"));
+        var result = await _service.UpdateAsync(1, new UpdateIngredientRequest("Bread Flour", "baking_flour", "g"));
 
         result.Name.Should().Be("Bread Flour");
-        result.Category.Should().Be("Baking");
+        result.Category.Should().Be("baking_flour");
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public class IngredientsServiceTests
             .Setup(r => r.UpdateAsync(42, It.IsAny<Action<Ingredient>>()))
             .ReturnsAsync((Ingredient?)null);
 
-        var act = () => _service.UpdateAsync(42, new UpdateIngredientRequest("Flour", null, "g"));
+        var act = () => _service.UpdateAsync(42, new UpdateIngredientRequest("Flour", "baking_flour", "g"));
 
         await act.Should().ThrowAsync<NotFoundException>();
     }

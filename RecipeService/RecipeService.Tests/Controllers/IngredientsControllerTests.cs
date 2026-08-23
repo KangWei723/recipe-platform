@@ -22,7 +22,7 @@ public class IngredientsControllerTests
     [Fact]
     public async Task Create_ReturnsCreatedAtActionWithIngredient()
     {
-        var request = new CreateIngredientRequest("Flour", "Baking", "g");
+        var request = new CreateIngredientRequest("Flour", "baking_flour", "g");
         var created = new IngredientResponse(1, request.Name, request.Category, request.DefaultUnit);
         _service.Setup(s => s.CreateAsync(request)).ReturnsAsync(created);
 
@@ -36,7 +36,7 @@ public class IngredientsControllerTests
     [Fact]
     public async Task Update_ReturnsOkWithUpdatedIngredient()
     {
-        var request = new UpdateIngredientRequest("Bread Flour", "Baking", "g");
+        var request = new UpdateIngredientRequest("Bread Flour", "baking_flour", "g");
         var updated = new IngredientResponse(1, request.Name, request.Category, request.DefaultUnit);
         _service.Setup(s => s.UpdateAsync(1, request)).ReturnsAsync(updated);
 
@@ -49,7 +49,7 @@ public class IngredientsControllerTests
     [Fact]
     public async Task Update_WhenMissing_PropagatesNotFoundException()
     {
-        var request = new UpdateIngredientRequest("Flour", null, "g");
+        var request = new UpdateIngredientRequest("Flour", "baking_flour", "g");
         _service.Setup(s => s.UpdateAsync(42, request)).ThrowsAsync(new NotFoundException("Ingredient 42 not found"));
 
         var act = () => _controller.Update(42, request);

@@ -67,6 +67,13 @@ public class RecipeServiceClient(HttpClient httpClient) : IRecipeServiceClient
         return await ReadOrThrowAsync<List<MeasurementUnitDto>>(response, requestUri, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<IngredientCategoryDto>> GetIngredientCategoriesAsync(CancellationToken cancellationToken = default)
+    {
+        const string requestUri = "/api/ingredients/categories";
+        var response = await SendAsync(HttpMethod.Get, requestUri, cancellationToken: cancellationToken);
+        return await ReadOrThrowAsync<List<IngredientCategoryDto>>(response, requestUri, cancellationToken);
+    }
+
     public async Task<IngredientDto> CreateIngredientAsync(
         CreateIngredientDto request, CancellationToken cancellationToken = default)
     {

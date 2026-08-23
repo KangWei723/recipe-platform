@@ -121,7 +121,7 @@ public class Mutation
     [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
     public async Task<Ingredient> CreateIngredientAsync(
         string name,
-        string? category,
+        string category,
         string defaultUnit,
         [Service] IRecipeServiceClient recipeClient,
         CancellationToken cancellationToken)
@@ -135,7 +135,7 @@ public class Mutation
     public async Task<Ingredient> UpdateIngredientAsync(
         long ingredientId,
         string name,
-        string? category,
+        string category,
         string defaultUnit,
         [Service] IRecipeServiceClient recipeClient,
         CancellationToken cancellationToken)

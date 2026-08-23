@@ -25,6 +25,7 @@ public class IngredientsService(IIngredientRepository repository) : IIngredients
     public async Task<IngredientResponse> CreateAsync(CreateIngredientRequest request)
     {
         EnsureValidUnit(request.DefaultUnit);
+        EnsureValidCategory(request.Category);
 
         var ingredient = new Ingredient
         {
@@ -40,6 +41,7 @@ public class IngredientsService(IIngredientRepository repository) : IIngredients
     public async Task<IngredientResponse> UpdateAsync(long id, UpdateIngredientRequest request)
     {
         EnsureValidUnit(request.DefaultUnit);
+        EnsureValidCategory(request.Category);
 
         var updated = await repository.UpdateAsync(id, ingredient =>
         {
@@ -59,6 +61,16 @@ public class IngredientsService(IIngredientRepository repository) : IIngredients
         if (!MeasurementUnits.IsValid(unit))
         {
             throw new ValidationException($"Unknown default unit: {unit}");
+        }
+    }
+
+    // Same reasoning as EnsureValidUnit: category is a curated catalog, not free text, and the
+    // server is the real enforcement boundary regardless of what the web-client dropdown allows.
+    private static void EnsureValidCategory(string category)
+    {
+        if (!IngredientCategories.IsValid(category))
+        {
+            throw new ValidationException($"Unknown category: {category}");
         }
     }
 

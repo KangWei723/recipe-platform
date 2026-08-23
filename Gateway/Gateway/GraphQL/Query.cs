@@ -137,6 +137,23 @@ public class Query
             .ToList();
     }
 
+    // Same reasoning as UnitsAsync: single source of truth lives in recipe-service
+    // (RecipeService.Domain.IngredientCategories) -- the Manage Ingredients category dropdown
+    // is driven entirely from this instead of keeping a second hardcoded copy on the frontend.
+    public async Task<IReadOnlyList<IngredientCategory>> IngredientCategoriesAsync(
+        [Service] IRecipeServiceClient recipeClient,
+        CancellationToken cancellationToken)
+    {
+        var categories = await recipeClient.GetIngredientCategoriesAsync(cancellationToken);
+        return categories
+            .Select(c => new IngredientCategory
+            {
+                Code = c.Code,
+                Label = c.Label
+            })
+            .ToList();
+    }
+
     // Standalone per-ingredient lookup, separate from RecipeIngredient.nearbyStores -- that
     // field is nested under a recipe's full ingredients list, so using it for a single
     // ingredient would mean re-fetching (and re-querying sourcing-service for) every other

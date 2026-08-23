@@ -13,7 +13,7 @@ CREATE TABLE users (
 CREATE TABLE ingredients (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL UNIQUE,
-    category VARCHAR(100),
+    category VARCHAR(100) NOT NULL,
     default_unit VARCHAR(50) NOT NULL
 );
 

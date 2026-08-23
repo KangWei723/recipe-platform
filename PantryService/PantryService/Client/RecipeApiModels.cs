@@ -6,7 +6,7 @@ namespace PantryService.Client;
 // fields it actually consumes (see docs/design.md — services talk over HTTP,
 // never a shared schema or shared code).
 
-public record IngredientDto(long Id, string Name, string? Category, string DefaultUnit);
+public record IngredientDto(long Id, string Name, string Category, string DefaultUnit);
 
 public record UserDto(long Id, string Email, string Name);
 

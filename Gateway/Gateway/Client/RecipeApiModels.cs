@@ -50,7 +50,7 @@ public record RecipeSummaryDto(
 public record IngredientDto(
     long Id,
     string Name,
-    string? Category,
+    string Category,
     string DefaultUnit
 );
 
@@ -91,13 +91,13 @@ public record UpdateRecipeDto(
 
 public record CreateIngredientDto(
     string Name,
-    string? Category,
+    string Category,
     string DefaultUnit
 );
 
 public record UpdateIngredientDto(
     string Name,
-    string? Category,
+    string Category,
     string DefaultUnit
 );
 
@@ -105,4 +105,9 @@ public record MeasurementUnitDto(
     string Code,
     string Label,
     bool IsFractionalFriendly
+);
+
+public record IngredientCategoryDto(
+    string Code,
+    string Label
 );
