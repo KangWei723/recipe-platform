@@ -1,9 +1,21 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useMutation, useQuery } from 'urql';
+import { useClient, useMutation, useQuery } from 'urql';
 import { useIsAdmin } from '../auth/useIsAdmin';
 import { NearbyStoresFinder } from '../components/NearbyStoresFinder';
-import { DELETE_RECIPE_MUTATION, RECIPE_QUERY } from '../graphql/queries';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '../components/ui/alert-dialog';
+import { Button, buttonVariants } from '../components/ui/button';
+import { DELETE_RECIPE_MUTATION, RECIPE_QUERY, RECIPES_QUERY } from '../graphql/queries';
 import type { RecipeDetail } from '../graphql/types';
 import { useUnits } from '../graphql/useUnits';
 import { formatMutationError } from '../utils/errors';
@@ -13,6 +25,7 @@ export function RecipeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const recipeId = Number(id);
   const navigate = useNavigate();
+  const client = useClient();
   const isAdmin = useIsAdmin();
   const { isFractionalFriendly } = useUnits();
 
@@ -33,10 +46,6 @@ export function RecipeDetailPage() {
   const sortedSteps = [...recipe.steps].sort((a, b) => a.stepNumber - b.stepNumber);
 
   async function handleDelete() {
-    if (!window.confirm(`Delete "${recipe.title}"? This cannot be undone.`)) {
-      return;
-    }
-
     setDeleteError(null);
     setDeleting(true);
     const result = await deleteRecipe({ recipeId });
@@ -47,6 +56,9 @@ export function RecipeDetailPage() {
       return;
     }
 
+    // Refetch before navigating so the list doesn't read urql's stale cache-first
+    // entry and briefly show the just-deleted recipe.
+    await client.query(RECIPES_QUERY, {}, { requestPolicy: 'network-only' }).toPromise();
     navigate('/');
   }
 
@@ -55,12 +67,29 @@ export function RecipeDetailPage() {
       <h1>{recipe.title}</h1>
       {isAdmin && (
         <div className="field-row">
-          <Link to={`/recipes/${recipe.id}/edit`} className="btn btn-outline btn-sm">
+          <Link
+            to={`/recipes/${recipe.id}/edit`}
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+          >
             Edit
           </Link>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={handleDelete} disabled={deleting}>
-            {deleting ? 'Deleting...' : 'Delete'}
-          </button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button type="button" variant="destructive" size="sm" disabled={deleting}>
+                {deleting ? 'Deleting...' : 'Delete'}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete "{recipe.title}"?</AlertDialogTitle>
+                <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       )}
       {deleteError && <p className="error-message">{deleteError}</p>}

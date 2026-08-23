@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useClient } from 'urql';
+import { Button } from './ui/button';
 import { NEARBY_STORES_QUERY } from '../graphql/queries';
 import type { StoreOffer } from '../graphql/types';
 import { distanceMiles } from '../utils/distance';
@@ -80,9 +81,9 @@ export function NearbyStoresFinder({ ingredientName }: { ingredientName: string 
       return (
         <div>
           <p className="nearby-stores-status">No nearby stores found for this ingredient.</p>
-          <button type="button" className="btn btn-outline btn-sm" onClick={handleFindStores}>
+          <Button type="button" variant="outline" size="sm" onClick={handleFindStores}>
             Search again
-          </button>
+          </Button>
         </div>
       );
     }
@@ -117,18 +118,18 @@ export function NearbyStoresFinder({ ingredientName }: { ingredientName: string 
             );
           })}
         </ul>
-        <button type="button" onClick={handleFindStores}>
+        <Button type="button" variant="outline" size="sm" onClick={handleFindStores}>
           Search again
-        </button>
+        </Button>
       </div>
     );
   }
 
   return (
     <div>
-      <button type="button" className="btn btn-outline btn-sm" onClick={handleFindStores}>
+      <Button type="button" variant="outline" size="sm" onClick={handleFindStores}>
         Find nearby stores
-      </button>
+      </Button>
       {state.status === 'error' && <p className="error-message">{state.message}</p>}
     </div>
   );

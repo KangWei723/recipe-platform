@@ -59,6 +59,15 @@ export const UNITS_QUERY = gql`
   }
 `;
 
+export const INGREDIENT_CATEGORIES_QUERY = gql`
+  query IngredientCategories {
+    ingredientCategories {
+      code
+      label
+    }
+  }
+`;
+
 export const INGREDIENTS_QUERY = gql`
   query Ingredients {
     ingredients {
@@ -155,7 +164,7 @@ export const DELETE_RECIPE_MUTATION = gql`
 `;
 
 export const CREATE_INGREDIENT_MUTATION = gql`
-  mutation CreateIngredient($name: String!, $category: String, $defaultUnit: String!) {
+  mutation CreateIngredient($name: String!, $category: String!, $defaultUnit: String!) {
     createIngredient(name: $name, category: $category, defaultUnit: $defaultUnit) {
       id
       name
@@ -166,7 +175,7 @@ export const CREATE_INGREDIENT_MUTATION = gql`
 `;
 
 export const UPDATE_INGREDIENT_MUTATION = gql`
-  mutation UpdateIngredient($ingredientId: Long!, $name: String!, $category: String, $defaultUnit: String!) {
+  mutation UpdateIngredient($ingredientId: Long!, $name: String!, $category: String!, $defaultUnit: String!) {
     updateIngredient(ingredientId: $ingredientId, name: $name, category: $category, defaultUnit: $defaultUnit) {
       id
       name

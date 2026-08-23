@@ -1,6 +1,7 @@
 import { useAuth0 } from '@auth0/auth0-react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { NavBar } from './components/NavBar';
+import { Button } from './components/ui/button';
 import { GraphQLProvider } from './graphql/client';
 import { IngredientsPage } from './pages/IngredientsPage';
 import { PantryPage } from './pages/PantryPage';
@@ -18,9 +19,9 @@ function App() {
   if (!isAuthenticated) {
     return (
       <div className="centered-message">
-        <button type="button" className="btn btn-primary" onClick={() => loginWithRedirect()}>
+        <Button type="button" onClick={() => loginWithRedirect()}>
           Log in
-        </button>
+        </Button>
       </div>
     );
   }

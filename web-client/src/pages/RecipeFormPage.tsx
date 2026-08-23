@@ -1,10 +1,17 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useMutation, useQuery } from 'urql';
+import { useClient, useMutation, useQuery } from 'urql';
+import { Button } from '../components/ui/button';
+import { Checkbox } from '../components/ui/checkbox';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Textarea } from '../components/ui/textarea';
 import {
   CREATE_RECIPE_MUTATION,
   INGREDIENTS_QUERY,
   RECIPE_QUERY,
+  RECIPES_QUERY,
   UPDATE_RECIPE_MUTATION,
 } from '../graphql/queries';
 import type { Ingredient, RecipeDetail } from '../graphql/types';
@@ -48,6 +55,7 @@ function emptyStepRow(): StepRow {
 
 export function RecipeFormPage() {
   const navigate = useNavigate();
+  const client = useClient();
   const { id } = useParams<{ id: string }>();
   const isEdit = id !== undefined;
   const recipeId = Number(id);
@@ -186,6 +194,13 @@ export function RecipeFormPage() {
     setSubmitting(false);
 
     if (savedId !== undefined) {
+      // Refetch from the network before navigating so the detail page (and the recipe
+      // list, whose title/timing summary may have changed) don't read urql's stale
+      // cache-first entry for this query+variables pair.
+      await Promise.all([
+        client.query(RECIPE_QUERY, { id: savedId }, { requestPolicy: 'network-only' }).toPromise(),
+        client.query(RECIPES_QUERY, {}, { requestPolicy: 'network-only' }).toPromise(),
+      ]);
       navigate(`/recipes/${savedId}`);
     }
   }
@@ -217,29 +232,47 @@ export function RecipeFormPage() {
       <h1>{isEdit ? 'Edit Recipe' : 'Add Recipe'}</h1>
       <form onSubmit={handleSubmit}>
         <div className="form-field">
-          <label>
-            Title
-            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
-          </label>
+          <Label htmlFor="recipe-title">Title</Label>
+          <Input id="recipe-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
         </div>
         <div className="form-field">
-          <label>
-            Description
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} />
-          </label>
+          <Label htmlFor="recipe-description">Description</Label>
+          <Textarea
+            id="recipe-description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
         </div>
         <div className="form-row">
           <label>
-            Servings
-            <input type="number" min="1" value={servings} onChange={(e) => setServings(e.target.value)} />
+            <Label htmlFor="recipe-servings">Servings</Label>
+            <Input
+              id="recipe-servings"
+              type="number"
+              min="1"
+              value={servings}
+              onChange={(e) => setServings(e.target.value)}
+            />
           </label>
           <label>
-            Prep time (min)
-            <input type="number" min="0" value={prepTimeMin} onChange={(e) => setPrepTimeMin(e.target.value)} />
+            <Label htmlFor="recipe-prep-time">Prep time (min)</Label>
+            <Input
+              id="recipe-prep-time"
+              type="number"
+              min="0"
+              value={prepTimeMin}
+              onChange={(e) => setPrepTimeMin(e.target.value)}
+            />
           </label>
           <label>
-            Cook time (min)
-            <input type="number" min="0" value={cookTimeMin} onChange={(e) => setCookTimeMin(e.target.value)} />
+            <Label htmlFor="recipe-cook-time">Cook time (min)</Label>
+            <Input
+              id="recipe-cook-time"
+              type="number"
+              min="0"
+              value={cookTimeMin}
+              onChange={(e) => setCookTimeMin(e.target.value)}
+            />
           </label>
         </div>
 
@@ -247,24 +280,29 @@ export function RecipeFormPage() {
         {ingredientRows.map((row) => (
           <div key={row.key} className="field-row">
             <label>
-              Ingredient
-              <select
+              <Label htmlFor={`ingredient-${row.key}-select`}>Ingredient</Label>
+              <Select
                 value={row.ingredientId}
-                onChange={(e) => handleIngredientSelect(row.key, e.target.value)}
+                onValueChange={(value) => handleIngredientSelect(row.key, value)}
                 disabled={ingredientsFetching}
               >
-                <option value="">Select...</option>
-                {ingredients.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id={`ingredient-${row.key}-select`}>
+                  <SelectValue placeholder="Select..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {ingredients.map((i) => (
+                    <SelectItem key={i.id} value={String(i.id)}>
+                      {i.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </label>
             <label>
-              Quantity
+              <Label htmlFor={`ingredient-${row.key}-quantity`}>Quantity</Label>
               {isFractionalFriendly(row.unit) ? (
-                <input
+                <Input
+                  id={`ingredient-${row.key}-quantity`}
                   type="text"
                   className="input-mono"
                   placeholder="e.g. 2 1/2"
@@ -272,7 +310,8 @@ export function RecipeFormPage() {
                   onChange={(e) => updateIngredientRow(row.key, { quantity: e.target.value })}
                 />
               ) : (
-                <input
+                <Input
+                  id={`ingredient-${row.key}-quantity`}
                   type="number"
                   min="0"
                   step="any"
@@ -283,78 +322,83 @@ export function RecipeFormPage() {
               )}
             </label>
             <label>
-              Unit
-              <input type="text" className="input-mono" value={row.unit} readOnly />
+              <Label htmlFor={`ingredient-${row.key}-unit`}>Unit</Label>
+              <Input id={`ingredient-${row.key}-unit`} type="text" className="input-mono" value={row.unit} readOnly />
             </label>
             <label>
-              Optional
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={row.optional}
-                onChange={(e) => updateIngredientRow(row.key, { optional: e.target.checked })}
+                onCheckedChange={(checked) => updateIngredientRow(row.key, { optional: checked === true })}
               />
+              Optional
             </label>
-            <button
+            <Button
               type="button"
-              className="btn btn-ghost btn-sm"
+              variant="ghost"
+              size="sm"
               onClick={() => setIngredientRows((rows) => rows.filter((r) => r.key !== row.key))}
               disabled={ingredientRows.length === 1}
             >
               Remove
-            </button>
+            </Button>
           </div>
         ))}
-        <button
+        <Button
           type="button"
-          className="btn btn-outline btn-sm"
+          variant="outline"
+          size="sm"
           onClick={() => setIngredientRows((rows) => [...rows, emptyIngredientRow()])}
         >
           Add ingredient
-        </button>
+        </Button>
 
         <h2>Steps</h2>
         {stepRows.map((row, index) => (
           <div key={row.key} className="field-row">
             <label>
-              Step {index + 1}
-              <input
+              <Label htmlFor={`step-${row.key}-instruction`}>Step {index + 1}</Label>
+              <Input
+                id={`step-${row.key}-instruction`}
                 type="text"
                 value={row.instruction}
                 onChange={(e) => updateStepRow(row.key, { instruction: e.target.value })}
               />
             </label>
             <label>
-              Timer (seconds, optional)
-              <input
+              <Label htmlFor={`step-${row.key}-timer`}>Timer (seconds, optional)</Label>
+              <Input
+                id={`step-${row.key}-timer`}
                 type="number"
                 min="0"
                 value={row.timerSeconds}
                 onChange={(e) => updateStepRow(row.key, { timerSeconds: e.target.value })}
               />
             </label>
-            <button
+            <Button
               type="button"
-              className="btn btn-ghost btn-sm"
+              variant="ghost"
+              size="sm"
               onClick={() => setStepRows((rows) => rows.filter((r) => r.key !== row.key))}
               disabled={stepRows.length === 1}
             >
               Remove
-            </button>
+            </Button>
           </div>
         ))}
-        <button
+        <Button
           type="button"
-          className="btn btn-outline btn-sm"
+          variant="outline"
+          size="sm"
           onClick={() => setStepRows((rows) => [...rows, emptyStepRow()])}
         >
           Add step
-        </button>
+        </Button>
 
         {error && <p className="error-message">{error}</p>}
         <div className="form-field">
-          <button type="submit" className="btn btn-primary" disabled={submitting}>
+          <Button type="submit" disabled={submitting}>
             {submitting ? (isEdit ? 'Saving...' : 'Creating...') : isEdit ? 'Save Changes' : 'Create Recipe'}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

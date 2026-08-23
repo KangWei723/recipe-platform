@@ -48,7 +48,7 @@ export interface RecipeDetail {
 export interface Ingredient {
   id: number;
   name: string;
-  category: string | null;
+  category: string;
   defaultUnit: string;
 }
 
@@ -56,6 +56,11 @@ export interface MeasurementUnit {
   code: string;
   label: string;
   isFractionalFriendly: boolean;
+}
+
+export interface IngredientCategory {
+  code: string;
+  label: string;
 }
 
 export interface PantryItem {

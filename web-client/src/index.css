@@ -1,3 +1,9 @@
+@import 'tailwindcss';
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
 :root {
   color-scheme: light;
 
@@ -18,7 +24,36 @@
 
   --radius-sm: 3px;
   --card-notch: 20px;
+
+  /* shadcn/ui theme slots, bridged to the tokens above so components stay in
+     the app's palette instead of shadcn's default zinc theme */
+  --background: var(--color-bg);
+  --foreground: var(--color-text);
+  --card: var(--color-surface);
+  --card-foreground: var(--color-text);
+  --popover: var(--color-surface);
+  --popover-foreground: var(--color-text);
+  --primary: var(--color-primary);
+  --primary-foreground: var(--color-surface);
+  --secondary: var(--color-secondary);
+  --secondary-foreground: var(--color-text);
+  --muted: var(--color-muted-tint);
+  --muted-foreground: var(--color-muted-text);
+  --accent: var(--color-muted-tint);
+  --accent-foreground: var(--color-text);
+  --destructive: var(--color-alert);
+  --destructive-foreground: var(--color-surface);
+  --border: var(--color-muted);
+  --input: var(--color-muted);
+  --ring: var(--color-secondary);
 }
+
+/* Everything below is plain app CSS written before Tailwind was introduced.
+   It's wrapped in @layer base so cascade-layer precedence stays correct:
+   unlayered CSS always beats layered CSS regardless of specificity, so
+   without this an element rule like `a { color }` would out-rank Tailwind
+   utility classes (which live in @layer utilities) on the same element. */
+@layer base {
 
 * {
   box-sizing: border-box;
@@ -159,76 +194,6 @@ a {
   font-size: 1.15rem;
 }
 
-/* ---------- Buttons ---------- */
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  font-weight: 500;
-  padding: 9px 18px;
-  border-radius: var(--radius-sm);
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--color-surface);
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--color-primary-hover);
-  border-color: var(--color-primary-hover);
-}
-
-.btn-outline {
-  background: transparent;
-  border-color: var(--color-muted);
-  color: var(--color-text);
-}
-
-.btn-outline:hover:not(:disabled) {
-  background: var(--color-muted-tint);
-}
-
-.btn-ghost {
-  background: transparent;
-  border-color: transparent;
-  color: var(--color-muted-text);
-  padding: 6px 10px;
-}
-
-.btn-ghost:hover:not(:disabled) {
-  color: var(--color-text);
-  background: var(--color-muted-tint);
-}
-
-.btn-sm {
-  font-size: 0.8rem;
-  padding: 6px 12px;
-}
-
-/* Bare buttons that haven't been given a .btn variant yet (defensive default) */
-button:not([class*='btn']) {
-  font-family: var(--font-body);
-  border: 1px solid var(--color-muted);
-  background: var(--color-surface);
-  color: var(--color-text);
-  border-radius: var(--radius-sm);
-  padding: 8px 14px;
-  cursor: pointer;
-}
-
 /* ---------- Recipe card ---------- */
 
 .recipe-card {
@@ -335,18 +300,6 @@ button:not([class*='btn']) {
 
 /* ---------- Forms ---------- */
 
-input,
-select,
-textarea {
-  font-family: var(--font-body);
-  font-size: 0.95rem;
-  color: var(--color-text);
-  background: var(--color-surface);
-  border: 1px solid var(--color-muted);
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
-}
-
 .input-mono {
   font-family: var(--font-mono);
 }
@@ -417,7 +370,7 @@ label {
   gap: 4px;
 }
 
-.field-row label:has(input[type='checkbox']) {
+.field-row label:has([role='checkbox']) {
   flex-direction: row;
   align-items: center;
   gap: 6px;
@@ -502,5 +455,48 @@ label {
   .form-field input,
   .form-field textarea {
     max-width: none;
+  }
+}
+
+} /* end @layer base */
+
+@theme inline {
+  /* Fixed rather than derived from a single --radius, so every shadcn
+     component lands on the app's sharp ~3px corners instead of the
+     library's rounder default. */
+  --radius-sm: 3px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-xl: 6px;
+  --radius-2xl: 8px;
+  --radius-3xl: 10px;
+  --radius-4xl: 12px;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
   }
 }

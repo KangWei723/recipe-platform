@@ -1,6 +1,7 @@
 import { useQuery } from 'urql';
 import { Link } from 'react-router-dom';
 import { useIsAdmin } from '../auth/useIsAdmin';
+import { buttonVariants } from '../components/ui/button';
 import { RECIPES_QUERY } from '../graphql/queries';
 import type { RecipeSummary } from '../graphql/types';
 
@@ -18,7 +19,7 @@ export function RecipeListPage() {
       <div className="page-header">
         <h1>Recipes</h1>
         {isAdmin && (
-          <Link to="/recipes/new" className="btn btn-primary">
+          <Link to="/recipes/new" className={buttonVariants({ variant: 'default' })}>
             Add Recipe
           </Link>
         )}

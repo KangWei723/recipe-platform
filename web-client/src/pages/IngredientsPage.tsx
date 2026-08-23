@@ -2,12 +2,28 @@ import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery } from 'urql';
 import { useIsAdmin } from '../auth/useIsAdmin';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '../components/ui/alert-dialog';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import {
   CREATE_INGREDIENT_MUTATION,
   DELETE_INGREDIENT_MUTATION,
   INGREDIENTS_QUERY,
   UPDATE_INGREDIENT_MUTATION,
 } from '../graphql/queries';
 import type { Ingredient } from '../graphql/types';
+import { useIngredientCategories } from '../graphql/useIngredientCategories';
 import { useUnits } from '../graphql/useUnits';
 import { formatMutationError } from '../utils/errors';
 
@@ -18,12 +34,13 @@ interface EditState {
 }
 
 function toEditState(ingredient: Ingredient): EditState {
-  return { name: ingredient.name, category: ingredient.category ?? '', defaultUnit: ingredient.defaultUnit };
+  return { name: ingredient.name, category: ingredient.category, defaultUnit: ingredient.defaultUnit };
 }
 
 export function IngredientsPage() {
   const isAdmin = useIsAdmin();
   const { units, fetching: unitsFetching } = useUnits();
+  const { categories, fetching: categoriesFetching, getLabel: getCategoryLabel } = useIngredientCategories();
 
   const [{ data, fetching, error }, refetch] = useQuery<{ ingredients: Ingredient[] }>({
     query: INGREDIENTS_QUERY,
@@ -51,15 +68,15 @@ export function IngredientsPage() {
     e.preventDefault();
     setFormError(null);
 
-    if (!name.trim() || !defaultUnit.trim()) {
-      setFormError('Name and default unit are required.');
+    if (!name.trim() || !category || !defaultUnit.trim()) {
+      setFormError('Name, category, and default unit are required.');
       return;
     }
 
     setSubmitting(true);
     const result = await createIngredient({
       name: name.trim(),
-      category: category.trim() || null,
+      category,
       defaultUnit: defaultUnit.trim(),
     });
     setSubmitting(false);
@@ -88,15 +105,15 @@ export function IngredientsPage() {
 
   async function handleSaveEdit(ingredientId: number) {
     if (!editState) return;
-    if (!editState.name.trim() || !editState.defaultUnit.trim()) {
-      setRowError({ id: ingredientId, message: 'Name and default unit are required.' });
+    if (!editState.name.trim() || !editState.category || !editState.defaultUnit.trim()) {
+      setRowError({ id: ingredientId, message: 'Name, category, and default unit are required.' });
       return;
     }
 
     const result = await updateIngredient({
       ingredientId,
       name: editState.name.trim(),
-      category: editState.category.trim() || null,
+      category: editState.category,
       defaultUnit: editState.defaultUnit.trim(),
     });
 
@@ -112,10 +129,6 @@ export function IngredientsPage() {
   }
 
   async function handleDelete(ingredientId: number) {
-    if (!window.confirm('Delete this ingredient? This cannot be undone.')) {
-      return;
-    }
-
     setRowError(null);
     const result = await deleteIngredient({ ingredientId });
 
@@ -133,32 +146,42 @@ export function IngredientsPage() {
 
       <form className="pantry-form" onSubmit={handleCreate}>
         <label>
-          Name
-          <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
+          <Label htmlFor="new-ingredient-name">Name</Label>
+          <Input id="new-ingredient-name" type="text" value={name} onChange={(e) => setName(e.target.value)} />
         </label>
         <label>
-          Category (optional)
-          <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} />
+          <Label htmlFor="new-ingredient-category">Category</Label>
+          <Select value={category} onValueChange={setCategory} disabled={categoriesFetching}>
+            <SelectTrigger id="new-ingredient-category">
+              <SelectValue placeholder="Select..." />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map((c) => (
+                <SelectItem key={c.code} value={c.code}>
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </label>
         <label>
-          Default unit
-          <select
-            className="input-mono"
-            value={defaultUnit}
-            onChange={(e) => setDefaultUnit(e.target.value)}
-            disabled={unitsFetching}
-          >
-            <option value="">Select...</option>
-            {units.map((u) => (
-              <option key={u.code} value={u.code}>
-                {u.label}
-              </option>
-            ))}
-          </select>
+          <Label htmlFor="new-ingredient-unit">Default unit</Label>
+          <Select value={defaultUnit} onValueChange={setDefaultUnit} disabled={unitsFetching}>
+            <SelectTrigger id="new-ingredient-unit" className="input-mono">
+              <SelectValue placeholder="Select..." />
+            </SelectTrigger>
+            <SelectContent>
+              {units.map((u) => (
+                <SelectItem key={u.code} value={u.code}>
+                  {u.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </label>
-        <button type="submit" className="btn btn-primary" disabled={submitting}>
+        <Button type="submit" disabled={submitting}>
           {submitting ? 'Adding...' : 'Add ingredient'}
-        </button>
+        </Button>
       </form>
       {formError && <p className="error-message">{formError}</p>}
 
@@ -171,53 +194,78 @@ export function IngredientsPage() {
           {editingId === ingredient.id && editState ? (
             <>
               <span className="field-row">
-                <input
+                <Input
                   type="text"
                   value={editState.name}
                   onChange={(e) => setEditState({ ...editState, name: e.target.value })}
                 />
-                <input
-                  type="text"
-                  placeholder="Category"
+                <Select
                   value={editState.category}
-                  onChange={(e) => setEditState({ ...editState, category: e.target.value })}
-                />
-                <select
-                  className="input-mono"
-                  value={editState.defaultUnit}
-                  onChange={(e) => setEditState({ ...editState, defaultUnit: e.target.value })}
+                  onValueChange={(value) => setEditState({ ...editState, category: value })}
                 >
-                  <option value="">Select...</option>
-                  {units.map((u) => (
-                    <option key={u.code} value={u.code}>
-                      {u.label}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((c) => (
+                      <SelectItem key={c.code} value={c.code}>
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={editState.defaultUnit}
+                  onValueChange={(value) => setEditState({ ...editState, defaultUnit: value })}
+                >
+                  <SelectTrigger className="input-mono">
+                    <SelectValue placeholder="Select..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {units.map((u) => (
+                      <SelectItem key={u.code} value={u.code}>
+                        {u.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </span>
               <span>
-                <button type="button" className="btn btn-primary btn-sm" onClick={() => handleSaveEdit(ingredient.id)}>
+                <Button type="button" size="sm" onClick={() => handleSaveEdit(ingredient.id)}>
                   Save
-                </button>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={cancelEdit}>
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={cancelEdit}>
                   Cancel
-                </button>
+                </Button>
               </span>
             </>
           ) : (
             <>
               <span>
-                {ingredient.name}
-                {ingredient.category ? ` (${ingredient.category})` : ''} &middot; default unit:{' '}
+                {ingredient.name} ({getCategoryLabel(ingredient.category)}) &middot; default unit:{' '}
                 <span className="input-mono">{ingredient.defaultUnit}</span>
               </span>
               <span>
-                <button type="button" className="btn btn-outline btn-sm" onClick={() => startEdit(ingredient)}>
+                <Button type="button" variant="outline" size="sm" onClick={() => startEdit(ingredient)}>
                   Edit
-                </button>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDelete(ingredient.id)}>
-                  Delete
-                </button>
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button type="button" variant="destructive" size="sm">
+                      Delete
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete "{ingredient.name}"?</AlertDialogTitle>
+                      <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleDelete(ingredient.id)}>Delete</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </span>
             </>
           )}

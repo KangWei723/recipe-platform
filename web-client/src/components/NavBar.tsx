@@ -1,6 +1,7 @@
 import { useAuth0 } from '@auth0/auth0-react';
 import { NavLink } from 'react-router-dom';
 import { useIsAdmin } from '../auth/useIsAdmin';
+import { Button } from './ui/button';
 
 export function NavBar() {
   const { user, logout } = useAuth0();
@@ -17,13 +18,14 @@ export function NavBar() {
       </div>
       <div className="navbar-user">
         {user?.email && <span>{user.email}</span>}
-        <button
+        <Button
           type="button"
-          className="btn btn-outline btn-sm"
+          variant="outline"
+          size="sm"
           onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}
         >
           Log out
-        </button>
+        </Button>
       </div>
     </nav>
   );

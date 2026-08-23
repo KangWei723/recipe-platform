@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from 'urql';
+import { Checkbox } from '../components/ui/checkbox';
 import {
   INGREDIENTS_QUERY,
   PANTRY_ITEMS_QUERY,
@@ -62,11 +63,10 @@ export function PantryPage() {
         const inPantry = pantryIngredientIds.has(ingredient.id);
         return (
           <label key={ingredient.id} className="pantry-checklist-item">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={inPantry}
               disabled={pendingIds.has(ingredient.id)}
-              onChange={() => handleToggle(ingredient.id, inPantry)}
+              onCheckedChange={() => handleToggle(ingredient.id, inPantry)}
             />
             {ingredient.name}
           </label>
