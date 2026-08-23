@@ -1,6 +1,18 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery } from 'urql';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '../components/ui/alert-dialog';
+import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import {
   INGREDIENTS_QUERY,
@@ -11,6 +23,7 @@ import {
 } from '../graphql/queries';
 import { useIngredientCategories } from '../graphql/useIngredientCategories';
 import type { Ingredient, PantryItem, RecipeMatch } from '../graphql/types';
+import { formatMutationError } from '../utils/errors';
 
 export function PantryPage() {
   const [{ data: pantryData, fetching: pantryFetching, error: pantryError }, refetchPantryItems] = useQuery<{
@@ -29,6 +42,7 @@ export function PantryPage() {
   const [pendingIds, setPendingIds] = useState<Set<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [clearing, setClearing] = useState(false);
 
   const ingredients = ingredientsData?.ingredients ?? [];
   const pantryItems = pantryData?.pantryItems ?? [];
@@ -50,6 +64,14 @@ export function PantryPage() {
     pause: ingredientIds.length === 0,
   });
 
+  // Every pantry-mutating action (toggle, clear-all, and anything added later) must route
+  // through this after it settles -- it's what keeps pantryItems, and therefore the
+  // ingredientIds driving RECIPE_MATCHES_QUERY's variables, in sync with what actually
+  // happened server-side. Centralized so a future pantry action can't forget to wire it.
+  function refreshPantryItems() {
+    refetchPantryItems({ requestPolicy: 'network-only' });
+  }
+
   async function handleToggle(ingredientId: number, currentlyInPantry: boolean) {
     setError(null);
     setPendingIds((ids) => new Set(ids).add(ingredientId));
@@ -69,7 +91,25 @@ export function PantryPage() {
       return;
     }
 
-    refetchPantryItems({ requestPolicy: 'network-only' });
+    refreshPantryItems();
+  }
+
+  async function handleClearAll() {
+    setError(null);
+    setClearing(true);
+
+    const results = await Promise.all(pantryItems.map((item) => removePantryItem({ ingredientId: item.ingredientId })));
+
+    setClearing(false);
+
+    const failed = results.find((result) => result.error);
+    if (failed?.error) {
+      setError(formatMutationError(failed.error, 'Failed to clear pantry.'));
+    }
+
+    // Refetch even on partial failure so the shelf reflects whatever actually got removed,
+    // same as handleToggle does for a single item.
+    refreshPantryItems();
   }
 
   const filteredIngredients = ingredients.filter((ingredient) =>
@@ -84,7 +124,11 @@ export function PantryPage() {
     .filter((group) => group.items.length > 0);
 
   const sortedPantryItems = [...pantryItems].sort((a, b) => a.ingredientName.localeCompare(b.ingredientName));
-  const matches = matchesData?.recipeMatches ?? [];
+  // urql doesn't clear a query's data when it becomes paused -- it just stops fetching and
+  // holds the last result. Once the pantry empties out, ingredientIds.length === 0 pauses
+  // RECIPE_MATCHES_QUERY, but matchesData would otherwise still hold the previous (non-empty)
+  // match list. Don't trust it once we know there's nothing to match against.
+  const matches = ingredientIds.length === 0 ? [] : (matchesData?.recipeMatches ?? []);
 
   return (
     <div>
@@ -136,7 +180,28 @@ export function PantryPage() {
           </div>
 
           <div className="panel pantry-shelf-panel">
-            <span className="panel-label">On the shelf &middot; {sortedPantryItems.length}</span>
+            <div className="panel-label-row">
+              <span className="panel-label">On the shelf &middot; {sortedPantryItems.length}</span>
+              {sortedPantryItems.length > 0 && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button type="button" variant="destructive" size="sm" disabled={clearing}>
+                      {clearing ? 'Clearing...' : 'Clear all'}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Clear all {sortedPantryItems.length} items from your pantry?</AlertDialogTitle>
+                      <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleClearAll}>Clear all</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </div>
             {sortedPantryItems.length === 0 ? (
               <p>Nothing selected yet -- tick ingredients on the left.</p>
             ) : (

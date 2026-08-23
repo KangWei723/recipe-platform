@@ -74,6 +74,9 @@ html,
 body {
   margin: 0;
   background: var(--color-bg);
+  /* Subtle vertical hairline texture, matching the Passalong design's page background --
+     a 1px ink-tinted line every 6px at 2.8% opacity, not a flat fill. */
+  background-image: repeating-linear-gradient(90deg, rgba(35, 38, 31, 0.028) 0 1px, transparent 1px 6px);
   color: var(--color-text);
 }
 
@@ -326,6 +329,13 @@ a {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--color-muted-text);
+}
+
+.panel-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 @media (max-width: 900px) {
@@ -601,13 +611,10 @@ label {
 }
 
 .form-field {
-  margin-bottom: 14px;
-}
-
-.form-field label {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  margin-bottom: 14px;
 }
 
 .form-field input,
@@ -621,6 +628,7 @@ label {
   grid-template-columns: 1fr 260px;
   gap: 24px;
   align-items: end;
+  margin-bottom: 10px;
 }
 
 .form-title-row .form-field {

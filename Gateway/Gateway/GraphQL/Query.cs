@@ -6,9 +6,7 @@ namespace Gateway.GraphQL;
 
 public class Query
 {
-    // Core query: recipe + ingredients + pantry status, resolved together so
-    // a single upstream call to pantry-service's missing-ingredients check
-    // covers every ingredient instead of one pantry lookup per ingredient.
+    // Core query: recipe + ingredients + pantry status, resolved together.
     // No userId argument: pantry-service resolves "whose pantry" from the caller's own
     // forwarded bearer token, not from a client-supplied value (that used to let any caller
     // read anyone's pantry just by passing a different id here).
@@ -24,9 +22,18 @@ public class Query
             return null;
         }
 
-        var missing = await pantryClient.GetMissingIngredientsAsync(id, cancellationToken);
-        var missingIngredientIds = missing.MissingIngredients
-            .Select(m => m.IngredientId)
+        // GetMissingIngredientsAsync only flags *required* ingredients (see PantryItemsService --
+        // it deliberately excludes optional ones, since "missing" there means "blocks cooking /
+        // needs sourcing"), so it's kept here for its ingredient.missing event side effect, not
+        // used to compute InPantry below -- an optional ingredient absent from that list is not
+        // the same thing as an optional ingredient the user actually owns. InPantry instead comes
+        // from the user's actual pantry contents, fetched independently alongside it.
+        var missingTask = pantryClient.GetMissingIngredientsAsync(id, cancellationToken);
+        var pantryItemsTask = pantryClient.GetForUserAsync(cancellationToken);
+        await Task.WhenAll(missingTask, pantryItemsTask);
+
+        var pantryIngredientIds = pantryItemsTask.Result
+            .Select(p => p.IngredientId)
             .ToHashSet();
 
         return new Recipe
@@ -58,7 +65,7 @@ public class Query
                     Quantity = i.Quantity,
                     Unit = i.Unit,
                     Optional = i.Optional,
-                    InPantry = !missingIngredientIds.Contains(i.IngredientId)
+                    InPantry = pantryIngredientIds.Contains(i.IngredientId)
                 })
                 .ToList()
         };
