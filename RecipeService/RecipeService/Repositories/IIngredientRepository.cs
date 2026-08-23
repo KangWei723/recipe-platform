@@ -11,4 +11,5 @@ public interface IIngredientRepository
     Task<Ingredient?> UpdateAsync(long id, Action<Ingredient> apply);
     Task<bool> DeleteAsync(long id);
     Task<int> CountRecipeUsagesAsync(long ingredientId);
+    Task<Dictionary<long, int>> CountAllRecipeUsagesAsync();
 }

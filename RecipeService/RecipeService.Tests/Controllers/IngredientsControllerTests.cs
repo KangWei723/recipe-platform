@@ -23,7 +23,7 @@ public class IngredientsControllerTests
     public async Task Create_ReturnsCreatedAtActionWithIngredient()
     {
         var request = new CreateIngredientRequest("Flour", "baking_flour", "g");
-        var created = new IngredientResponse(1, request.Name, request.Category, request.DefaultUnit);
+        var created = new IngredientResponse(1, request.Name, request.Category, request.DefaultUnit, 0);
         _service.Setup(s => s.CreateAsync(request)).ReturnsAsync(created);
 
         var result = await _controller.Create(request);
@@ -37,7 +37,7 @@ public class IngredientsControllerTests
     public async Task Update_ReturnsOkWithUpdatedIngredient()
     {
         var request = new UpdateIngredientRequest("Bread Flour", "baking_flour", "g");
-        var updated = new IngredientResponse(1, request.Name, request.Category, request.DefaultUnit);
+        var updated = new IngredientResponse(1, request.Name, request.Category, request.DefaultUnit, 3);
         _service.Setup(s => s.UpdateAsync(1, request)).ReturnsAsync(updated);
 
         var result = await _controller.Update(1, request);

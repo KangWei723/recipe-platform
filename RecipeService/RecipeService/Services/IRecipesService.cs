@@ -9,4 +9,5 @@ public interface IRecipesService
     Task<RecipeDetailResponse> CreateAsync(CreateRecipeRequest request, long authorId);
     Task<RecipeDetailResponse> UpdateAsync(long id, UpdateRecipeRequest request);
     Task DeleteAsync(long id);
+    Task<List<RecipeMatchResponse>> GetMatchesAsync(List<long> ingredientIds);
 }

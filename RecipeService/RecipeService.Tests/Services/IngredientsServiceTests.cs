@@ -93,4 +93,20 @@ public class IngredientsServiceTests
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
+
+    [Fact]
+    public async Task GetAllAsync_MapsUsageCountFromBulkLookup_DefaultingToZeroWhenAbsent()
+    {
+        _repository.Setup(r => r.GetAllAsync()).ReturnsAsync(
+        [
+            new Ingredient { Id = 1, Name = "Flour", DefaultUnit = "g" },
+            new Ingredient { Id = 2, Name = "Unused Spice", DefaultUnit = "tsp" }
+        ]);
+        _repository.Setup(r => r.CountAllRecipeUsagesAsync()).ReturnsAsync(new Dictionary<long, int> { [1] = 5 });
+
+        var result = await _service.GetAllAsync();
+
+        result.Should().ContainSingle(i => i.Id == 1 && i.UsageCount == 5);
+        result.Should().ContainSingle(i => i.Id == 2 && i.UsageCount == 0);
+    }
 }

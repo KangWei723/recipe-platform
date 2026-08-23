@@ -91,3 +91,33 @@ public record RecipeDetailResponse(
     List<RecipeStepResponse> Steps,
     List<RecipeIngredientResponse> Ingredients
 );
+
+public record RecipeMatchRequest(List<long> IngredientIds)
+{
+    // Same "don't NRE on an omitted array" rationale as CreateRecipeRequest above.
+    public List<long> IngredientIds { get; init; } = IngredientIds ?? [];
+}
+
+public record MissingMatchIngredientResponse(
+    long IngredientId,
+    string IngredientName
+);
+
+// Optional ingredients are excluded from every count here and never appear in
+// MissingIngredients, matching pantry-service's existing per-recipe missing-ingredients
+// semantics (GetMissingIngredientsAsync) -- an optional ingredient shouldn't stop a recipe
+// from reading as a full match.
+public record RecipeMatchResponse(
+    long Id,
+    long AuthorId,
+    string Title,
+    string? Description,
+    int? Servings,
+    int? PrepTimeMin,
+    int? CookTimeMin,
+    string? ImageUrl,
+    DateTimeOffset CreatedAt,
+    int RequiredIngredientCount,
+    int MatchedIngredientCount,
+    List<MissingMatchIngredientResponse> MissingIngredients
+);

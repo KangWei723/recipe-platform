@@ -19,6 +19,13 @@ public class RecipesController(IRecipesService service, IUsersService usersServi
     public async Task<ActionResult<RecipeDetailResponse>> GetById(long id) =>
         Ok(await service.GetByIdAsync(id));
 
+    // POST rather than GET+query-string: an ingredient set can be large enough that it
+    // doesn't comfortably fit a query string, and this is a computation over the caller's
+    // input rather than a lookup by id.
+    [HttpPost("match")]
+    public async Task<ActionResult<List<RecipeMatchResponse>>> Match([FromBody] RecipeMatchRequest request) =>
+        Ok(await service.GetMatchesAsync(request.IngredientIds));
+
     [HttpPost]
     [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
     public async Task<ActionResult<RecipeDetailResponse>> Create([FromBody] CreateRecipeRequest request)

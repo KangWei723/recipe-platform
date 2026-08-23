@@ -54,4 +54,13 @@ public class IngredientRepository(RecipeDbContext context) : IIngredientReposito
     // error with a readable one.
     public Task<int> CountRecipeUsagesAsync(long ingredientId) =>
         context.RecipeIngredients.CountAsync(ri => ri.IngredientId == ingredientId);
+
+    // Backs the ingredient catalog's "in recipes" column -- one grouped query for every
+    // ingredient's usage count, rather than CountRecipeUsagesAsync called once per ingredient
+    // (which would be an N+1 query per catalog-page load).
+    public Task<Dictionary<long, int>> CountAllRecipeUsagesAsync() =>
+        context.RecipeIngredients
+            .GroupBy(ri => ri.IngredientId)
+            .Select(g => new { IngredientId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.IngredientId, x => x.Count);
 }

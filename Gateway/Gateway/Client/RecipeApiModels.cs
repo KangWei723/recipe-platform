@@ -51,7 +51,8 @@ public record IngredientDto(
     long Id,
     string Name,
     string Category,
-    string DefaultUnit
+    string DefaultUnit,
+    int UsageCount
 );
 
 public record CreateRecipeStepDto(
@@ -110,4 +111,28 @@ public record MeasurementUnitDto(
 public record IngredientCategoryDto(
     string Code,
     string Label
+);
+
+public record RecipeMatchRequestDto(
+    List<long> IngredientIds
+);
+
+public record MissingMatchIngredientDto(
+    long IngredientId,
+    string IngredientName
+);
+
+public record RecipeMatchDto(
+    long Id,
+    long AuthorId,
+    string Title,
+    string? Description,
+    int? Servings,
+    int? PrepTimeMin,
+    int? CookTimeMin,
+    string? ImageUrl,
+    DateTimeOffset CreatedAt,
+    int RequiredIngredientCount,
+    int MatchedIngredientCount,
+    List<MissingMatchIngredientDto> MissingIngredients
 );

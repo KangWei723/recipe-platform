@@ -110,6 +110,22 @@ public class RecipesService(
         }
     }
 
+    // "What can I cook" matching: rank every recipe by how much of its required ingredient
+    // list is covered by the caller's ingredient set. Reuses the same GetAllAsync query
+    // RecipeSummaryResponse is built from (already loads Ingredients via Include), so this
+    // adds no extra round trip to the database beyond what listing recipes already costs.
+    public async Task<List<RecipeMatchResponse>> GetMatchesAsync(List<long> ingredientIds)
+    {
+        var haveIds = ingredientIds.ToHashSet();
+        var recipes = await recipeRepository.GetAllAsync();
+
+        return recipes
+            .Select(recipe => ToMatchResponse(recipe, haveIds))
+            .OrderBy(m => m.MissingIngredients.Count)
+            .ThenByDescending(m => m.MatchedIngredientCount)
+            .ToList();
+    }
+
     private async Task EnsureIngredientsExistAsync(IEnumerable<long> ingredientIds)
     {
         var distinctIds = ingredientIds.Distinct().ToList();
@@ -133,6 +149,30 @@ public class RecipesService(
             recipe.ImageUrl,
             recipe.CreatedAt
         );
+
+    private static RecipeMatchResponse ToMatchResponse(Recipe recipe, HashSet<long> haveIds)
+    {
+        var required = recipe.Ingredients.Where(ri => !ri.Optional).ToList();
+        var missing = required
+            .Where(ri => !haveIds.Contains(ri.IngredientId))
+            .Select(ri => new MissingMatchIngredientResponse(ri.IngredientId, ri.Ingredient!.Name))
+            .ToList();
+
+        return new RecipeMatchResponse(
+            recipe.Id,
+            recipe.AuthorId,
+            recipe.Title,
+            recipe.Description,
+            recipe.Servings,
+            recipe.PrepTimeMin,
+            recipe.CookTimeMin,
+            recipe.ImageUrl,
+            recipe.CreatedAt,
+            RequiredIngredientCount: required.Count,
+            MatchedIngredientCount: required.Count - missing.Count,
+            MissingIngredients: missing
+        );
+    }
 
     private static RecipeDetailResponse ToDetailResponse(Recipe recipe) =>
         new(

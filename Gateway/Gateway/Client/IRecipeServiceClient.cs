@@ -12,6 +12,9 @@ public interface IRecipeServiceClient
 
     Task<IReadOnlyList<IngredientCategoryDto>> GetIngredientCategoriesAsync(CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<RecipeMatchDto>> GetMatchesAsync(
+        IReadOnlyList<long> ingredientIds, CancellationToken cancellationToken = default);
+
     // No author argument: recipe-service derives the author from the caller's own forwarded
     // bearer token (UsersService.ResolveCurrentUserAsync), not from anything Gateway supplies.
     Task<RecipeDetailDto> CreateAsync(CreateRecipeDto request, CancellationToken cancellationToken = default);

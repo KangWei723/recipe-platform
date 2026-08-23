@@ -13,13 +13,15 @@ public class IngredientsService(IIngredientRepository repository) : IIngredients
     {
         var ingredient = await repository.GetByIdAsync(id)
             ?? throw new NotFoundException($"Ingredient {id} not found");
-        return ToResponse(ingredient);
+        var usageCount = await repository.CountRecipeUsagesAsync(id);
+        return ToResponse(ingredient, usageCount);
     }
 
     public async Task<List<IngredientResponse>> GetAllAsync()
     {
         var ingredients = await repository.GetAllAsync();
-        return ingredients.Select(ToResponse).ToList();
+        var usageCounts = await repository.CountAllRecipeUsagesAsync();
+        return ingredients.Select(i => ToResponse(i, usageCounts.GetValueOrDefault(i.Id, 0))).ToList();
     }
 
     public async Task<IngredientResponse> CreateAsync(CreateIngredientRequest request)
@@ -35,7 +37,8 @@ public class IngredientsService(IIngredientRepository repository) : IIngredients
         };
 
         var created = await repository.AddAsync(ingredient);
-        return ToResponse(created);
+        // A brand-new ingredient can't be referenced by any recipe yet.
+        return ToResponse(created, usageCount: 0);
     }
 
     public async Task<IngredientResponse> UpdateAsync(long id, UpdateIngredientRequest request)
@@ -50,7 +53,8 @@ public class IngredientsService(IIngredientRepository repository) : IIngredients
             ingredient.DefaultUnit = request.DefaultUnit;
         }) ?? throw new NotFoundException($"Ingredient {id} not found");
 
-        return ToResponse(updated);
+        var usageCount = await repository.CountRecipeUsagesAsync(id);
+        return ToResponse(updated, usageCount);
     }
 
     // Ingredient units are standardized at the source (this service), not left to free text --
@@ -100,6 +104,6 @@ public class IngredientsService(IIngredientRepository repository) : IIngredients
         }
     }
 
-    private static IngredientResponse ToResponse(Ingredient ingredient) =>
-        new(ingredient.Id, ingredient.Name, ingredient.Category, ingredient.DefaultUnit);
+    private static IngredientResponse ToResponse(Ingredient ingredient, int usageCount) =>
+        new(ingredient.Id, ingredient.Name, ingredient.Category, ingredient.DefaultUnit, usageCount);
 }

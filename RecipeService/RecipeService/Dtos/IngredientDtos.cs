@@ -18,7 +18,8 @@ public record IngredientResponse(
     long Id,
     string Name,
     string Category,
-    string DefaultUnit
+    string DefaultUnit,
+    int UsageCount
 );
 
 public record MeasurementUnitResponse(

@@ -70,6 +70,44 @@ public class IngredientRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CountAllRecipeUsagesAsync_ReturnsCountsGroupedByIngredient()
+    {
+        var user = new User { Email = "chef3@example.com", Name = "Chef", CreatedAt = DateTimeOffset.UtcNow };
+        var flour = new Ingredient { Name = "Flour3", DefaultUnit = "g" };
+        var sugar = new Ingredient { Name = "Sugar3", DefaultUnit = "g" };
+        var unused = new Ingredient { Name = "Unused3", DefaultUnit = "g" };
+        _context.Users.Add(user);
+        _context.Ingredients.AddRange(flour, sugar, unused);
+        await _context.SaveChangesAsync();
+
+        _context.Recipes.Add(new Recipe
+        {
+            AuthorId = user.Id,
+            Title = "Bread",
+            CreatedAt = DateTimeOffset.UtcNow,
+            Ingredients =
+            {
+                new RecipeIngredient { IngredientId = flour.Id, Quantity = 500, Unit = "g" },
+                new RecipeIngredient { IngredientId = sugar.Id, Quantity = 10, Unit = "g" }
+            }
+        });
+        _context.Recipes.Add(new Recipe
+        {
+            AuthorId = user.Id,
+            Title = "Pancakes",
+            CreatedAt = DateTimeOffset.UtcNow,
+            Ingredients = { new RecipeIngredient { IngredientId = flour.Id, Quantity = 200, Unit = "g" } }
+        });
+        await _context.SaveChangesAsync();
+
+        var repository = new IngredientRepository(_context);
+        var counts = await repository.CountAllRecipeUsagesAsync();
+
+        counts.Should().Contain(flour.Id, 2).And.Contain(sugar.Id, 1);
+        counts.Should().NotContainKey(unused.Id);
+    }
+
+    [Fact]
     public async Task DeleteAsync_WhenReferencedByRecipeIngredient_ThrowsForeignKeyViolation()
     {
         var user = new User { Email = "chef2@example.com", Name = "Chef", CreatedAt = DateTimeOffset.UtcNow };

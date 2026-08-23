@@ -74,6 +74,15 @@ public class RecipeServiceClient(HttpClient httpClient) : IRecipeServiceClient
         return await ReadOrThrowAsync<List<IngredientCategoryDto>>(response, requestUri, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<RecipeMatchDto>> GetMatchesAsync(
+        IReadOnlyList<long> ingredientIds, CancellationToken cancellationToken = default)
+    {
+        const string requestUri = "/api/recipes/match";
+        var response = await SendAsync(
+            HttpMethod.Post, requestUri, new RecipeMatchRequestDto(ingredientIds.ToList()), cancellationToken);
+        return await ReadOrThrowAsync<List<RecipeMatchDto>>(response, requestUri, cancellationToken);
+    }
+
     public async Task<IngredientDto> CreateIngredientAsync(
         CreateIngredientDto request, CancellationToken cancellationToken = default)
     {

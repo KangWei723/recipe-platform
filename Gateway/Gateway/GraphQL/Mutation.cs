@@ -175,6 +175,7 @@ public class Mutation
             Id = dto.Id,
             Name = dto.Name,
             Category = dto.Category,
-            DefaultUnit = dto.DefaultUnit
+            DefaultUnit = dto.DefaultUnit,
+            UsageCount = dto.UsageCount
         };
 }

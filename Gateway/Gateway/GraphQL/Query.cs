@@ -96,7 +96,8 @@ public class Query
                 Id = i.Id,
                 Name = i.Name,
                 Category = i.Category,
-                DefaultUnit = i.DefaultUnit
+                DefaultUnit = i.DefaultUnit,
+                UsageCount = i.UsageCount
             })
             .ToList();
     }
@@ -150,6 +151,46 @@ public class Query
             {
                 Code = c.Code,
                 Label = c.Label
+            })
+            .ToList();
+    }
+
+    // "What can I cook" ranking: recipe-service already loads every recipe's ingredients in one
+    // query to build the plain recipe list (RecipeRepository.GetAllAsync), so the match/missing
+    // computation is done there rather than here -- doing it in Gateway would mean either an
+    // extra full-detail round trip per recipe (N+1) or recipe-service shipping every recipe's
+    // complete ingredient list over the wire just so Gateway can count them. Gateway's job here
+    // is purely mapping the ranked result onto GraphQL types.
+    public async Task<IReadOnlyList<RecipeMatch>> RecipeMatchesAsync(
+        List<long> ingredientIds,
+        [Service] IRecipeServiceClient recipeClient,
+        CancellationToken cancellationToken)
+    {
+        var matches = await recipeClient.GetMatchesAsync(ingredientIds, cancellationToken);
+        return matches
+            .Select(m => new RecipeMatch
+            {
+                Recipe = new RecipeSummary
+                {
+                    Id = m.Id,
+                    AuthorId = m.AuthorId,
+                    Title = m.Title,
+                    Description = m.Description,
+                    Servings = m.Servings,
+                    PrepTimeMin = m.PrepTimeMin,
+                    CookTimeMin = m.CookTimeMin,
+                    ImageUrl = m.ImageUrl,
+                    CreatedAt = m.CreatedAt
+                },
+                RequiredIngredientCount = m.RequiredIngredientCount,
+                MatchedIngredientCount = m.MatchedIngredientCount,
+                MissingIngredients = m.MissingIngredients
+                    .Select(mi => new MissingMatchIngredient
+                    {
+                        IngredientId = mi.IngredientId,
+                        IngredientName = mi.IngredientName
+                    })
+                    .ToList()
             })
             .ToList();
     }
