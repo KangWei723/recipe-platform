@@ -29,10 +29,16 @@ export function RecipeDetailPage() {
   const isAdmin = useIsAdmin();
   const { isFractionalFriendly } = useUnits();
 
+  // network-only, not the default cache-first: this recipe's ingredients carry an inPantry
+  // flag computed from the user's pantry, which can change from an entirely different page
+  // (PantryPage) that has no way to know which cached recipe(id) queries that affects -- unlike
+  // the recipe-edit flow, there's no single query to target and invalidate, so this query has
+  // to stop trusting its cache instead.
   const [{ data, fetching, error }] = useQuery<{ recipe: RecipeDetail | null }, { id: number }>({
     query: RECIPE_QUERY,
     variables: { id: recipeId },
     pause: Number.isNaN(recipeId),
+    requestPolicy: 'network-only',
   });
   const [, deleteRecipe] = useMutation(DELETE_RECIPE_MUTATION);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -62,89 +68,102 @@ export function RecipeDetailPage() {
     navigate('/');
   }
 
+  const haveCount = recipe.ingredients.filter((i) => i.inPantry).length;
+
   return (
     <div>
-      <h1>{recipe.title}</h1>
-      {isAdmin && (
-        <div className="field-row">
-          <Link
-            to={`/recipes/${recipe.id}/edit`}
-            className={buttonVariants({ variant: 'outline', size: 'sm' })}
-          >
-            Edit
-          </Link>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button type="button" variant="destructive" size="sm" disabled={deleting}>
-                {deleting ? 'Deleting...' : 'Delete'}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete "{recipe.title}"?</AlertDialogTitle>
-                <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      )}
-      {deleteError && <p className="error-message">{deleteError}</p>}
-      {recipe.description && <p>{recipe.description}</p>}
-      <small>
-        {[
-          recipe.servings ? `${recipe.servings} servings` : null,
-          recipe.prepTimeMin ? `${recipe.prepTimeMin} min prep` : null,
-          recipe.cookTimeMin ? `${recipe.cookTimeMin} min cook` : null,
-        ]
-          .filter(Boolean)
-          .join(' · ')}
-      </small>
-
-      <h2>Ingredients</h2>
-      {recipe.ingredients.map((ingredient) => (
-        <div key={ingredient.id}>
-          <div className={`ingredient-row${ingredient.inPantry ? ' in-pantry' : ''}`}>
-            <span className="ingredient-dot" aria-hidden="true" />
-            <span className="sr-only">{ingredient.inPantry ? 'In pantry' : 'Missing'}</span>
-            <span className="ingredient-qty">
-              {formatQuantity(ingredient.quantity, isFractionalFriendly(ingredient.unit))} {ingredient.unit}
-            </span>
-            <span className="ingredient-name">
-              {ingredient.ingredientName}
-              {ingredient.optional ? ' (optional)' : ''}
-            </span>
-          </div>
-          {!ingredient.inPantry && (
-            <div className="missing-ingredient-options">
-              {ingredient.substitutions.length > 0 && (
-                <ul className="substitutions">
-                  {ingredient.substitutions.map((sub) => (
-                    <li key={sub.substituteName}>
-                      Substitute: {sub.substituteName} (ratio {sub.ratio}, confidence{' '}
-                      {Math.round(sub.confidence * 100)}%)
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <NearbyStoresFinder ingredientName={ingredient.ingredientName} />
+      <div className="content-panel recipe-detail-panel">
+        <div className="recipe-detail-main">
+          <h1>{recipe.title}</h1>
+          {isAdmin && (
+            <div className="field-row">
+              <Link
+                to={`/recipes/${recipe.id}/edit`}
+                className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              >
+                Edit
+              </Link>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button type="button" variant="destructive" size="sm" disabled={deleting}>
+                    {deleting ? 'Deleting...' : 'Delete'}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete "{recipe.title}"?</AlertDialogTitle>
+                    <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           )}
-        </div>
-      ))}
+          {deleteError && <p className="error-message">{deleteError}</p>}
+          {recipe.description && <p>{recipe.description}</p>}
+          <div className="recipe-meta">
+            {recipe.prepTimeMin != null && <span>PREP {recipe.prepTimeMin}m</span>}
+            {recipe.cookTimeMin != null && <span>COOK {recipe.cookTimeMin}m</span>}
+            {recipe.servings != null && <span>SERVES {recipe.servings}</span>}
+          </div>
 
-      <h2>Steps</h2>
-      <ol className="steps-list">
-        {sortedSteps.map((step) => (
-          <li key={step.id}>
-            {step.instruction}
-            {step.timerSeconds && ` (${Math.round(step.timerSeconds / 60)} min)`}
-          </li>
-        ))}
-      </ol>
+          <div className="section-divider" />
+
+          <h2>Steps</h2>
+          <ol className="steps-list">
+            {sortedSteps.map((step) => (
+              <li key={step.id}>
+                {step.instruction}
+                {step.timerSeconds && ` (${Math.round(step.timerSeconds / 60)} min)`}
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <div className="recipe-detail-ingredients">
+          <div className="panel-toolbar">
+            <h2>Ingredients</h2>
+            <span className="stat-line">
+              {haveCount}/{recipe.ingredients.length} ON SHELF
+            </span>
+          </div>
+          {recipe.ingredients.map((ingredient) => {
+            // The top-ranked substitute only -- ingredient.substitutions carries a full ranked
+            // array (ratio/confidence/contexts per candidate), but a single best suggestion
+            // reads more cleanly here than a list of alternatives.
+            const topSub = ingredient.substitutions[0];
+            return (
+              <div key={ingredient.id}>
+                <div className={`ingredient-row${ingredient.inPantry ? ' in-pantry' : ''}`}>
+                  <span className="ingredient-dot" aria-hidden="true" />
+                  <span className="sr-only">{ingredient.inPantry ? 'In pantry' : 'Missing'}</span>
+                  <span className="ingredient-qty">
+                    {formatQuantity(ingredient.quantity, isFractionalFriendly(ingredient.unit))} {ingredient.unit}
+                  </span>
+                  <span className="ingredient-name">
+                    {ingredient.ingredientName}
+                    {ingredient.optional ? ' (optional)' : ''}
+                  </span>
+                </div>
+                {!ingredient.inPantry && (
+                  <div className="missing-callout">
+                    <span className="missing-callout-label">Not on the shelf</span>
+                    {topSub && (
+                      <p className="missing-callout-sub">
+                        Try instead: <strong>{topSub.substituteName}</strong>
+                      </p>
+                    )}
+                    <NearbyStoresFinder ingredientName={ingredient.ingredientName} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

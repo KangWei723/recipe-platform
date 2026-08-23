@@ -75,6 +75,7 @@ export const INGREDIENTS_QUERY = gql`
       name
       category
       defaultUnit
+      usageCount
     }
   }
 `;
@@ -95,6 +96,28 @@ export const UPSERT_PANTRY_ITEM_MUTATION = gql`
       ingredientId
       ingredientName
       updatedAt
+    }
+  }
+`;
+
+export const RECIPE_MATCHES_QUERY = gql`
+  query RecipeMatches($ingredientIds: [Long!]!) {
+    recipeMatches(ingredientIds: $ingredientIds) {
+      recipe {
+        id
+        title
+        description
+        servings
+        prepTimeMin
+        cookTimeMin
+        imageUrl
+      }
+      requiredIngredientCount
+      matchedIngredientCount
+      missingIngredients {
+        ingredientId
+        ingredientName
+      }
     }
   }
 `;

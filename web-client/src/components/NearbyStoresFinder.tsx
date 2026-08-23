@@ -127,9 +127,9 @@ export function NearbyStoresFinder({ ingredientName }: { ingredientName: string 
 
   return (
     <div>
-      <Button type="button" variant="outline" size="sm" onClick={handleFindStores}>
-        Find nearby stores
-      </Button>
+      <button type="button" className="find-nearby-link" onClick={handleFindStores}>
+        Find nearby →
+      </button>
       {state.status === 'error' && <p className="error-message">{state.message}</p>}
     </div>
   );

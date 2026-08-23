@@ -50,6 +50,7 @@ export interface Ingredient {
   name: string;
   category: string;
   defaultUnit: string;
+  usageCount: number;
 }
 
 export interface MeasurementUnit {
@@ -67,6 +68,18 @@ export interface PantryItem {
   ingredientId: number;
   ingredientName: string;
   updatedAt: string;
+}
+
+export interface MissingMatchIngredient {
+  ingredientId: number;
+  ingredientName: string;
+}
+
+export interface RecipeMatch {
+  recipe: RecipeSummary;
+  requiredIngredientCount: number;
+  matchedIngredientCount: number;
+  missingIngredients: MissingMatchIngredient[];
 }
 
 export interface CreateRecipeStepInput {

@@ -17,6 +17,7 @@ export function NavBar() {
         {isAdmin && <NavLink to="/ingredients">Manage Ingredients</NavLink>}
       </div>
       <div className="navbar-user">
+        {isAdmin && <span className="keeper-badge">Keeper</span>}
         {user?.email && <span>{user.email}</span>}
         <Button
           type="button"

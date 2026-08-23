@@ -59,10 +59,15 @@ export function IngredientsPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editState, setEditState] = useState<EditState | null>(null);
   const [rowError, setRowError] = useState<{ id: number; message: string } | null>(null);
+  const [filter, setFilter] = useState('');
 
   if (!isAdmin) {
     return <p>Admin access required to manage ingredients.</p>;
   }
+
+  const filteredIngredients = (data?.ingredients ?? []).filter((ingredient) =>
+    ingredient.name.toLowerCase().includes(filter.trim().toLowerCase()),
+  );
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
@@ -142,7 +147,23 @@ export function IngredientsPage() {
 
   return (
     <div>
-      <h1>Manage Ingredients</h1>
+      <div className="page-header">
+        <h1>Manage Ingredients</h1>
+        <span className="keeper-badge">Keeper's desk</span>
+      </div>
+
+      <div className="content-panel keeper-panel">
+        <div className="panel-toolbar">
+          <Input
+            type="search"
+            className="filter-input"
+            placeholder="Filter the catalog"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            aria-label="Filter the catalog"
+          />
+          <span className="stat-line">{data?.ingredients.length ?? 0} INGREDIENTS</span>
+        </div>
 
       <form className="pantry-form" onSubmit={handleCreate}>
         <label>
@@ -188,9 +209,25 @@ export function IngredientsPage() {
       {fetching && <p>Loading ingredients...</p>}
       {error && <p className="error-message">Failed to load ingredients: {error.message}</p>}
       {data?.ingredients.length === 0 && <p>No ingredients yet.</p>}
+      {data && data.ingredients.length > 0 && filteredIngredients.length === 0 && (
+        <p>No ingredients match "{filter}".</p>
+      )}
 
-      {data?.ingredients.map((ingredient) => (
-        <div key={ingredient.id} className="pantry-item-row">
+      {filteredIngredients.length > 0 && (
+        <div className="ingredient-table-header">
+          <span>Name</span>
+          <span>Category</span>
+          <span>Default unit</span>
+          <span>In recipes</span>
+          <span />
+        </div>
+      )}
+
+      {filteredIngredients.map((ingredient) => (
+        <div
+          key={ingredient.id}
+          className={editingId === ingredient.id && editState ? 'field-row' : 'ingredient-table-row'}
+        >
           {editingId === ingredient.id && editState ? (
             <>
               <span className="field-row">
@@ -241,11 +278,11 @@ export function IngredientsPage() {
             </>
           ) : (
             <>
-              <span>
-                {ingredient.name} ({getCategoryLabel(ingredient.category)}) &middot; default unit:{' '}
-                <span className="input-mono">{ingredient.defaultUnit}</span>
-              </span>
-              <span>
+              <span>{ingredient.name}</span>
+              <span>{getCategoryLabel(ingredient.category)}</span>
+              <span className="input-mono">{ingredient.defaultUnit}</span>
+              <span className="input-mono">{ingredient.usageCount}</span>
+              <span className="ingredient-table-row-actions">
                 <Button type="button" variant="outline" size="sm" onClick={() => startEdit(ingredient)}>
                   Edit
                 </Button>
@@ -272,6 +309,7 @@ export function IngredientsPage() {
           {rowError?.id === ingredient.id && <p className="error-message">{rowError.message}</p>}
         </div>
       ))}
+      </div>
     </div>
   );
 }

@@ -1,6 +1,34 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical } from 'lucide-react';
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useClient, useMutation, useQuery } from 'urql';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog';
 import { Button } from '../components/ui/button';
 import { Checkbox } from '../components/ui/checkbox';
 import { Input } from '../components/ui/input';
@@ -53,6 +81,107 @@ function emptyStepRow(): StepRow {
   return { key: nextRowKey++, instruction: '', timerSeconds: '' };
 }
 
+interface FormSnapshotInput {
+  title: string;
+  description: string;
+  servings: string;
+  prepTimeMin: string;
+  cookTimeMin: string;
+  ingredientRows: IngredientRow[];
+  stepRows: StepRow[];
+}
+
+// Row `key` is an internal React identity, not user-visible content, so it's excluded here --
+// otherwise every snapshot would compare unequal just because nextRowKey keeps incrementing.
+function serializeSnapshot(state: FormSnapshotInput): string {
+  return JSON.stringify({
+    title: state.title,
+    description: state.description,
+    servings: state.servings,
+    prepTimeMin: state.prepTimeMin,
+    cookTimeMin: state.cookTimeMin,
+    ingredients: state.ingredientRows.map(({ ingredientId, quantity, unit, optional }) => ({
+      ingredientId,
+      quantity,
+      unit,
+      optional,
+    })),
+    steps: state.stepRows.map(({ instruction, timerSeconds }) => ({ instruction, timerSeconds })),
+  });
+}
+
+// The known shape of a brand-new Add Recipe form, used as the "untouched" baseline for create
+// mode -- unlike edit mode, there's no async prefill to wait for, so this is available upfront.
+const EMPTY_FORM_SNAPSHOT = serializeSnapshot({
+  title: '',
+  description: '',
+  servings: '',
+  prepTimeMin: '',
+  cookTimeMin: '',
+  ingredientRows: [{ key: 0, ingredientId: '', quantity: '', unit: '', optional: false }],
+  stepRows: [{ key: 0, instruction: '', timerSeconds: '' }],
+});
+
+interface SortableStepRowProps {
+  row: StepRow;
+  index: number;
+  onUpdate: (key: number, patch: Partial<StepRow>) => void;
+  onRemove: (key: number) => void;
+  removeDisabled: boolean;
+}
+
+// A standalone component (not inlined in the .map callback) because useSortable is a hook --
+// calling it once per row requires each row to be its own component instance.
+function SortableStepRow({ row, index, onUpdate, onRemove, removeDisabled }: SortableStepRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: row.key });
+
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="field-row step-row">
+      <button
+        type="button"
+        className="step-drag-handle"
+        aria-label={`Reorder step ${index + 1}`}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical aria-hidden="true" />
+      </button>
+      <span className="step-number" aria-hidden="true">
+        Step {index + 1}
+      </span>
+      <label className="step-instruction">
+        <Label htmlFor={`step-${row.key}-instruction`}>Instruction</Label>
+        <Textarea
+          id={`step-${row.key}-instruction`}
+          rows={3}
+          aria-label={`Step ${index + 1} instruction`}
+          value={row.instruction}
+          onChange={(e) => onUpdate(row.key, { instruction: e.target.value })}
+        />
+      </label>
+      <label>
+        <Label htmlFor={`step-${row.key}-timer`}>Timer (seconds, optional)</Label>
+        <Input
+          id={`step-${row.key}-timer`}
+          type="number"
+          min="0"
+          value={row.timerSeconds}
+          onChange={(e) => onUpdate(row.key, { timerSeconds: e.target.value })}
+        />
+      </label>
+      <Button type="button" variant="ghost" size="sm" onClick={() => onRemove(row.key)} disabled={removeDisabled}>
+        Remove
+      </Button>
+    </div>
+  );
+}
+
 export function RecipeFormPage() {
   const navigate = useNavigate();
   const client = useClient();
@@ -72,7 +201,11 @@ export function RecipeFormPage() {
   const [{ data: ingredientsData, fetching: ingredientsFetching }] = useQuery<{ ingredients: Ingredient[] }>({
     query: INGREDIENTS_QUERY,
   });
-  const { isFractionalFriendly, fetching: unitsFetching } = useUnits();
+  const { units, isFractionalFriendly, fetching: unitsFetching } = useUnits();
+  const stepSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
   const [, createRecipe] = useMutation<{ createRecipe: { id: number; title: string } }>(CREATE_RECIPE_MUTATION);
   const [, updateRecipe] = useMutation<{ updateRecipe: { id: number; title: string } }>(UPDATE_RECIPE_MUTATION);
 
@@ -86,6 +219,13 @@ export function RecipeFormPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [prefilled, setPrefilled] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+
+  // The "untouched form" baseline Cancel compares against to decide whether to confirm before
+  // discarding. Create mode knows this upfront (EMPTY_FORM_SNAPSHOT); edit mode can't know it
+  // until the recipe has loaded and prefilled the fields below, so it starts null and is filled
+  // in at the end of the prefill effect.
+  const baselineRef = useRef<string | null>(isEdit ? null : EMPTY_FORM_SNAPSHOT);
 
   const ingredients = ingredientsData?.ingredients ?? [];
 
@@ -93,12 +233,12 @@ export function RecipeFormPage() {
     if (!isEdit || prefilled || !recipeData?.recipe || unitsFetching) return;
 
     const recipe = recipeData.recipe;
-    setTitle(recipe.title);
-    setDescription(recipe.description ?? '');
-    setServings(recipe.servings != null ? String(recipe.servings) : '');
-    setPrepTimeMin(recipe.prepTimeMin != null ? String(recipe.prepTimeMin) : '');
-    setCookTimeMin(recipe.cookTimeMin != null ? String(recipe.cookTimeMin) : '');
-    setIngredientRows(
+    const nextTitle = recipe.title;
+    const nextDescription = recipe.description ?? '';
+    const nextServings = recipe.servings != null ? String(recipe.servings) : '';
+    const nextPrepTimeMin = recipe.prepTimeMin != null ? String(recipe.prepTimeMin) : '';
+    const nextCookTimeMin = recipe.cookTimeMin != null ? String(recipe.cookTimeMin) : '';
+    const nextIngredientRows =
       recipe.ingredients.length > 0
         ? recipe.ingredients.map((i) => ({
             key: nextRowKey++,
@@ -107,9 +247,8 @@ export function RecipeFormPage() {
             unit: i.unit,
             optional: i.optional,
           }))
-        : [emptyIngredientRow()],
-    );
-    setStepRows(
+        : [emptyIngredientRow()];
+    const nextStepRows =
       recipe.steps.length > 0
         ? [...recipe.steps]
             .sort((a, b) => a.stepNumber - b.stepNumber)
@@ -118,10 +257,49 @@ export function RecipeFormPage() {
               instruction: s.instruction,
               timerSeconds: s.timerSeconds != null ? String(s.timerSeconds) : '',
             }))
-        : [emptyStepRow()],
-    );
+        : [emptyStepRow()];
+
+    setTitle(nextTitle);
+    setDescription(nextDescription);
+    setServings(nextServings);
+    setPrepTimeMin(nextPrepTimeMin);
+    setCookTimeMin(nextCookTimeMin);
+    setIngredientRows(nextIngredientRows);
+    setStepRows(nextStepRows);
     setPrefilled(true);
+
+    baselineRef.current = serializeSnapshot({
+      title: nextTitle,
+      description: nextDescription,
+      servings: nextServings,
+      prepTimeMin: nextPrepTimeMin,
+      cookTimeMin: nextCookTimeMin,
+      ingredientRows: nextIngredientRows,
+      stepRows: nextStepRows,
+    });
   }, [isEdit, prefilled, recipeData, unitsFetching, isFractionalFriendly]);
+
+  function isDirty(): boolean {
+    // Baseline isn't established yet (edit mode still loading) -- nothing to compare against,
+    // so there's nothing the user could have changed.
+    if (baselineRef.current === null) return false;
+    return (
+      serializeSnapshot({ title, description, servings, prepTimeMin, cookTimeMin, ingredientRows, stepRows }) !==
+      baselineRef.current
+    );
+  }
+
+  function navigateAway() {
+    navigate(isEdit ? `/recipes/${recipeId}` : '/');
+  }
+
+  function handleCancelClick() {
+    if (isDirty()) {
+      setCancelDialogOpen(true);
+    } else {
+      navigateAway();
+    }
+  }
 
   function updateIngredientRow(key: number, patch: Partial<IngredientRow>) {
     setIngredientRows((rows) => rows.map((row) => (row.key === key ? { ...row, ...patch } : row)));
@@ -142,8 +320,37 @@ export function RecipeFormPage() {
     );
   }
 
+  function handleUnitSelect(key: number, unit: string) {
+    setIngredientRows((rows) =>
+      rows.map((row) => {
+        if (row.key !== key) return row;
+        // Same reset rule as handleIngredientSelect: the admin can now pick a unit independent
+        // of the ingredient's default_unit, so a fractional-vs-decimal style change has to be
+        // handled here too, not just when the ingredient itself changes.
+        const categoryChanged = isFractionalFriendly(row.unit) !== isFractionalFriendly(unit);
+        return { ...row, unit, quantity: categoryChanged ? '' : row.quantity };
+      }),
+    );
+  }
+
   function updateStepRow(key: number, patch: Partial<StepRow>) {
     setStepRows((rows) => rows.map((row) => (row.key === key ? { ...row, ...patch } : row)));
+  }
+
+  // Reorders by moving one row to another position rather than touching row content, so each
+  // row keeps its own React key (and DOM node/focus) as it moves -- stepNumber itself is never
+  // stored, only derived from array position at submit time (see handleSubmit's
+  // `steps: stepRows.map((r, index) => ...)`), so dragging a row immediately renumbers every
+  // row's visible "Step N" label without any separate reindexing step.
+  function handleStepDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    setStepRows((rows) => {
+      const oldIndex = rows.findIndex((r) => r.key === active.id);
+      const newIndex = rows.findIndex((r) => r.key === over.id);
+      return arrayMove(rows, oldIndex, newIndex);
+    });
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -230,10 +437,47 @@ export function RecipeFormPage() {
   return (
     <div>
       <h1>{isEdit ? 'Edit Recipe' : 'Add Recipe'}</h1>
-      <form onSubmit={handleSubmit}>
-        <div className="form-field">
-          <Label htmlFor="recipe-title">Title</Label>
-          <Input id="recipe-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
+      <form className="content-panel keeper-panel" onSubmit={handleSubmit}>
+        <div className="form-title-row">
+          <div className="form-field">
+            <Label htmlFor="recipe-title">Title</Label>
+            <Input id="recipe-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
+          </div>
+          <div className="form-field">
+            <Label>Prep / Cook / Serves</Label>
+            <div className="form-title-row-meta">
+              <Input
+                id="recipe-prep-time"
+                type="number"
+                min="0"
+                className="input-mono"
+                placeholder="Prep"
+                aria-label="Prep time (min)"
+                value={prepTimeMin}
+                onChange={(e) => setPrepTimeMin(e.target.value)}
+              />
+              <Input
+                id="recipe-cook-time"
+                type="number"
+                min="0"
+                className="input-mono"
+                placeholder="Cook"
+                aria-label="Cook time (min)"
+                value={cookTimeMin}
+                onChange={(e) => setCookTimeMin(e.target.value)}
+              />
+              <Input
+                id="recipe-servings"
+                type="number"
+                min="1"
+                className="input-mono"
+                placeholder="Serves"
+                aria-label="Servings"
+                value={servings}
+                onChange={(e) => setServings(e.target.value)}
+              />
+            </div>
+          </div>
         </div>
         <div className="form-field">
           <Label htmlFor="recipe-description">Description</Label>
@@ -243,42 +487,12 @@ export function RecipeFormPage() {
             onChange={(e) => setDescription(e.target.value)}
           />
         </div>
-        <div className="form-row">
-          <label>
-            <Label htmlFor="recipe-servings">Servings</Label>
-            <Input
-              id="recipe-servings"
-              type="number"
-              min="1"
-              value={servings}
-              onChange={(e) => setServings(e.target.value)}
-            />
-          </label>
-          <label>
-            <Label htmlFor="recipe-prep-time">Prep time (min)</Label>
-            <Input
-              id="recipe-prep-time"
-              type="number"
-              min="0"
-              value={prepTimeMin}
-              onChange={(e) => setPrepTimeMin(e.target.value)}
-            />
-          </label>
-          <label>
-            <Label htmlFor="recipe-cook-time">Cook time (min)</Label>
-            <Input
-              id="recipe-cook-time"
-              type="number"
-              min="0"
-              value={cookTimeMin}
-              onChange={(e) => setCookTimeMin(e.target.value)}
-            />
-          </label>
-        </div>
 
+        <div className="form-columns">
+        <div>
         <h2>Ingredients</h2>
         {ingredientRows.map((row) => (
-          <div key={row.key} className="field-row">
+          <div key={row.key} className="field-row ingredient-field-row">
             <label>
               <Label htmlFor={`ingredient-${row.key}-select`}>Ingredient</Label>
               <Select
@@ -286,7 +500,7 @@ export function RecipeFormPage() {
                 onValueChange={(value) => handleIngredientSelect(row.key, value)}
                 disabled={ingredientsFetching}
               >
-                <SelectTrigger id={`ingredient-${row.key}-select`}>
+                <SelectTrigger id={`ingredient-${row.key}-select`} className="w-full">
                   <SelectValue placeholder="Select..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -323,7 +537,22 @@ export function RecipeFormPage() {
             </label>
             <label>
               <Label htmlFor={`ingredient-${row.key}-unit`}>Unit</Label>
-              <Input id={`ingredient-${row.key}-unit`} type="text" className="input-mono" value={row.unit} readOnly />
+              <Select
+                value={row.unit}
+                onValueChange={(value) => handleUnitSelect(row.key, value)}
+                disabled={unitsFetching}
+              >
+                <SelectTrigger id={`ingredient-${row.key}-unit`} className="input-mono w-full">
+                  <SelectValue placeholder="Select..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {units.map((u) => (
+                    <SelectItem key={u.code} value={u.code}>
+                      {u.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </label>
             <label>
               <Checkbox
@@ -351,40 +580,24 @@ export function RecipeFormPage() {
         >
           Add ingredient
         </Button>
+        </div>
 
+        <div>
         <h2>Steps</h2>
-        {stepRows.map((row, index) => (
-          <div key={row.key} className="field-row">
-            <label>
-              <Label htmlFor={`step-${row.key}-instruction`}>Step {index + 1}</Label>
-              <Input
-                id={`step-${row.key}-instruction`}
-                type="text"
-                value={row.instruction}
-                onChange={(e) => updateStepRow(row.key, { instruction: e.target.value })}
+        <DndContext sensors={stepSensors} collisionDetection={closestCenter} onDragEnd={handleStepDragEnd}>
+          <SortableContext items={stepRows.map((r) => r.key)} strategy={verticalListSortingStrategy}>
+            {stepRows.map((row, index) => (
+              <SortableStepRow
+                key={row.key}
+                row={row}
+                index={index}
+                onUpdate={updateStepRow}
+                onRemove={(key) => setStepRows((rows) => rows.filter((r) => r.key !== key))}
+                removeDisabled={stepRows.length === 1}
               />
-            </label>
-            <label>
-              <Label htmlFor={`step-${row.key}-timer`}>Timer (seconds, optional)</Label>
-              <Input
-                id={`step-${row.key}-timer`}
-                type="number"
-                min="0"
-                value={row.timerSeconds}
-                onChange={(e) => updateStepRow(row.key, { timerSeconds: e.target.value })}
-              />
-            </label>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setStepRows((rows) => rows.filter((r) => r.key !== row.key))}
-              disabled={stepRows.length === 1}
-            >
-              Remove
-            </Button>
-          </div>
-        ))}
+            ))}
+          </SortableContext>
+        </DndContext>
         <Button
           type="button"
           variant="outline"
@@ -393,14 +606,34 @@ export function RecipeFormPage() {
         >
           Add step
         </Button>
+        </div>
+        </div>
 
         {error && <p className="error-message">{error}</p>}
-        <div className="form-field">
+        <div className="form-actions">
           <Button type="submit" disabled={submitting}>
             {submitting ? (isEdit ? 'Saving...' : 'Creating...') : isEdit ? 'Save Changes' : 'Create Recipe'}
           </Button>
+          <Button type="button" variant="outline" onClick={handleCancelClick} disabled={submitting}>
+            Cancel
+          </Button>
         </div>
       </form>
+
+      <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {isEdit ? "Your changes to this recipe" : 'This recipe'} will not be saved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction onClick={navigateAway}>Discard</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
