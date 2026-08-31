@@ -202,18 +202,30 @@ public class Query
             .ToList();
     }
 
-    // Standalone per-ingredient lookup, separate from RecipeIngredient.nearbyStores -- that
-    // field is nested under a recipe's full ingredients list, so using it for a single
-    // ingredient would mean re-fetching (and re-querying sourcing-service for) every other
-    // ingredient too. This lets a client look up just the one ingredient it needs.
-    public async Task<IReadOnlyList<StoreOffer>> NearbyStoresAsync(
+    // Confirmed, per-ingredient lookup (e.g. Kroger's real product/price search) -- called
+    // on-demand for one ingredient at a time (imperative client.query() per button click), not
+    // nested under the recipe's ingredients list, since re-fetching the whole recipe just to
+    // check one ingredient's availability would be wasteful.
+    public async Task<IReadOnlyList<StoreOffer>> ConfirmedStoreOfferAsync(
         string ingredientName,
         double lat,
         double lng,
         [Service] ISourcingServiceClient sourcingClient,
         CancellationToken cancellationToken)
     {
-        var nearby = await sourcingClient.GetNearbyAsync(ingredientName, lat, lng, cancellationToken);
+        var nearby = await sourcingClient.GetConfirmedNearbyAsync(ingredientName, lat, lng, cancellationToken);
+        return StoreOfferMapper.ToGraphQl(nearby.Results);
+    }
+
+    // General, ingredient-agnostic "nearby stores" lookup (e.g. Google Places) -- not scoped to
+    // any one ingredient, so callers fetch it once rather than once per missing ingredient.
+    public async Task<IReadOnlyList<StoreOffer>> NearbyStoresGeneralAsync(
+        double lat,
+        double lng,
+        [Service] ISourcingServiceClient sourcingClient,
+        CancellationToken cancellationToken)
+    {
+        var nearby = await sourcingClient.GetGeneralNearbyAsync(lat, lng, cancellationToken);
         return StoreOfferMapper.ToGraphQl(nearby.Results);
     }
 }

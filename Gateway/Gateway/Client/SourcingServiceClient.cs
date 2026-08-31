@@ -13,19 +13,36 @@ public class SourcingServiceClient(HttpClient httpClient, ILogger<SourcingServic
         PropertyNameCaseInsensitive = true
     };
 
-    // Nearby-store lookups are a non-critical enhancement (see Query.NearbyStoresAsync /
-    // RecipeIngredientResolvers.GetNearbyStoresAsync) -- any failure here (unreachable, timed
-    // out via the scoped timeout configured on this HttpClient in Program.cs, or a non-2xx
-    // response) degrades to an empty result instead of throwing. Mirrors
-    // SubstitutionServiceClient's fallback.
-    public async Task<NearbySourcingDto> GetNearbyAsync(
+    // Nearby-store lookups are a non-critical enhancement (see Query.ConfirmedStoreOfferAsync /
+    // Query.NearbyStoresGeneralAsync) -- any failure here (unreachable, timed out via the scoped
+    // timeout configured on this HttpClient in Program.cs, or a non-2xx response) degrades to an
+    // empty result instead of throwing. Mirrors SubstitutionServiceClient's fallback.
+    public async Task<NearbySourcingDto> GetConfirmedNearbyAsync(
         string ingredientName, double lat, double lng, CancellationToken cancellationToken = default)
     {
         var requestUri =
-            $"/api/sourcing/{Uri.EscapeDataString(ingredientName)}/nearby" +
+            $"/api/sourcing/{Uri.EscapeDataString(ingredientName)}/nearby/confirmed" +
             $"?lat={lat.ToString(CultureInfo.InvariantCulture)}" +
             $"&lng={lng.ToString(CultureInfo.InvariantCulture)}";
 
+        var result = await GetAsync<NearbySourcingDto>(requestUri, cancellationToken);
+        return result ?? new NearbySourcingDto(ingredientName, lat, lng, []);
+    }
+
+    public async Task<NearbyGeneralSourcingDto> GetGeneralNearbyAsync(
+        double lat, double lng, CancellationToken cancellationToken = default)
+    {
+        var requestUri =
+            "/api/sourcing/nearby/general" +
+            $"?lat={lat.ToString(CultureInfo.InvariantCulture)}" +
+            $"&lng={lng.ToString(CultureInfo.InvariantCulture)}";
+
+        var result = await GetAsync<NearbyGeneralSourcingDto>(requestUri, cancellationToken);
+        return result ?? new NearbyGeneralSourcingDto(lat, lng, []);
+    }
+
+    private async Task<T?> GetAsync<T>(string requestUri, CancellationToken cancellationToken) where T : class
+    {
         HttpResponseMessage response;
         try
         {
@@ -41,7 +58,7 @@ public class SourcingServiceClient(HttpClient httpClient, ILogger<SourcingServic
             logger.LogWarning(ex,
                 "sourcing-service unreachable/timed out for {RequestUri}; returning empty nearby stores",
                 requestUri);
-            return new NearbySourcingDto(ingredientName, lat, lng, []);
+            return null;
         }
 
         if (!response.IsSuccessStatusCode)
@@ -49,10 +66,9 @@ public class SourcingServiceClient(HttpClient httpClient, ILogger<SourcingServic
             logger.LogWarning(
                 "sourcing-service returned {StatusCode} for {RequestUri}; returning empty nearby stores",
                 (int)response.StatusCode, requestUri);
-            return new NearbySourcingDto(ingredientName, lat, lng, []);
+            return null;
         }
 
-        var result = await response.Content.ReadFromJsonAsync<NearbySourcingDto>(JsonOptions, cancellationToken);
-        return result ?? new NearbySourcingDto(ingredientName, lat, lng, []);
+        return await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken);
     }
 }

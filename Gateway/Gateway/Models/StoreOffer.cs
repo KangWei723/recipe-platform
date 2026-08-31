@@ -11,4 +11,7 @@ public class StoreOffer
     public string? Currency { get; init; }
     public required bool IsSimulated { get; init; }
     public string? PlaceId { get; init; }
+    public string? StoreId { get; init; }
+    public string? ProductId { get; init; }
+    public string? ProductName { get; init; }
 }

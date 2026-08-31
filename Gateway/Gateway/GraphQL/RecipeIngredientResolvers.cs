@@ -1,4 +1,3 @@
-using Gateway.Client;
 using Gateway.Models;
 using HotChocolate;
 using HotChocolate.Types;
@@ -23,16 +22,5 @@ public class RecipeIngredientResolvers
                 Confidence = r.Confidence
             })
             .ToList();
-    }
-
-    public async Task<IReadOnlyList<StoreOffer>> GetNearbyStoresAsync(
-        [Parent] RecipeIngredient ingredient,
-        double lat,
-        double lng,
-        [Service] ISourcingServiceClient sourcingClient,
-        CancellationToken cancellationToken)
-    {
-        var nearby = await sourcingClient.GetNearbyAsync(ingredient.IngredientName, lat, lng, cancellationToken);
-        return StoreOfferMapper.ToGraphQl(nearby.Results);
     }
 }

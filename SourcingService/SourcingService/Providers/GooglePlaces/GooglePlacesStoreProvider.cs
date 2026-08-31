@@ -7,6 +7,7 @@ namespace SourcingService.Providers.GooglePlaces;
 public class GooglePlacesStoreProvider(IGooglePlacesClient client) : IStoreProvider
 {
     public string Name => "GooglePlaces";
+    public bool IsIngredientSpecific => false;
 
     // The Nearby Search API only accepts one "type" value per request, so the
     // request-level filter (grocery_or_supermarket) can't also exclude types --

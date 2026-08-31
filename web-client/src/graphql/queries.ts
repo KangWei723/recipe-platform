@@ -214,9 +214,28 @@ export const DELETE_INGREDIENT_MUTATION = gql`
   }
 `;
 
-export const NEARBY_STORES_QUERY = gql`
-  query NearbyStores($ingredientName: String!, $lat: Float!, $lng: Float!) {
-    nearbyStores(ingredientName: $ingredientName, lat: $lat, lng: $lng) {
+export const CONFIRMED_STORE_QUERY = gql`
+  query ConfirmedStoreOffer($ingredientName: String!, $lat: Float!, $lng: Float!) {
+    confirmedStoreOffer(ingredientName: $ingredientName, lat: $lat, lng: $lng) {
+      providerName
+      storeName
+      address
+      lat
+      lng
+      price
+      currency
+      isSimulated
+      placeId
+      storeId
+      productId
+      productName
+    }
+  }
+`;
+
+export const GENERAL_STORES_QUERY = gql`
+  query NearbyStoresGeneral($lat: Float!, $lng: Float!) {
+    nearbyStoresGeneral(lat: $lat, lng: $lng) {
       providerName
       storeName
       address

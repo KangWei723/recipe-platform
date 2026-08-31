@@ -1,4 +1,4 @@
-# Recipe Platform — Design Doc
+# Larder — Design Doc
 
 ## Purpose
 

@@ -20,7 +20,10 @@ internal static class StoreOfferMapper
                 Price = r.Price,
                 Currency = r.Currency,
                 IsSimulated = r.IsSimulated,
-                PlaceId = r.PlaceId
+                PlaceId = r.PlaceId,
+                StoreId = r.StoreId,
+                ProductId = r.ProductId,
+                ProductName = r.ProductName
             })
             .ToList();
 }

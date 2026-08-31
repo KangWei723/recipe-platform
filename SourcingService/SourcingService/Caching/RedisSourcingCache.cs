@@ -6,7 +6,7 @@ using StackExchange.Redis;
 
 namespace SourcingService.Caching;
 
-// Keyed by ingredient name + lat/lng rounded to 2 decimal places (~1.1km at the
+// Keyed by scope (see ISourcingCache) + lat/lng rounded to 2 decimal places (~1.1km at the
 // equator) so requests from nearby coordinates -- not just identical ones -- hit
 // the same entry, which matters since browser geolocation rarely repeats exactly.
 // Redis being unreachable degrades to a cache miss rather than failing the request:
@@ -19,9 +19,9 @@ public class RedisSourcingCache(
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 
     public async Task<IReadOnlyList<StoreOffer>?> GetAsync(
-        string ingredientName, double lat, double lng, CancellationToken cancellationToken)
+        string scope, double lat, double lng, CancellationToken cancellationToken)
     {
-        var key = BuildKey(ingredientName, lat, lng);
+        var key = BuildKey(scope, lat, lng);
         using var activity = SourcingCacheInstrumentation.ActivitySource.StartActivity("sourcing.cache.get");
         activity?.SetTag("sourcing.cache.key", key);
 
@@ -42,7 +42,7 @@ public class RedisSourcingCache(
         if (value.IsNullOrEmpty)
         {
             logger.LogInformation(
-                "Sourcing cache outcome=miss ingredient={IngredientName} key={Key}", ingredientName, key);
+                "Sourcing cache outcome=miss scope={Scope} key={Key}", scope, key);
             activity?.SetTag("sourcing.cache.result", "miss");
             SourcingCacheInstrumentation.LookupCounter.Add(1, new KeyValuePair<string, object?>("cache.result", "miss"));
             return null;
@@ -51,8 +51,8 @@ public class RedisSourcingCache(
         var offers = JsonSerializer.Deserialize<List<StoreOffer>>(value!, SerializerOptions);
 
         logger.LogInformation(
-            "Sourcing cache outcome=hit ingredient={IngredientName} key={Key} offerCount={OfferCount}",
-            ingredientName, key, offers?.Count ?? 0);
+            "Sourcing cache outcome=hit scope={Scope} key={Key} offerCount={OfferCount}",
+            scope, key, offers?.Count ?? 0);
         activity?.SetTag("sourcing.cache.result", "hit");
         SourcingCacheInstrumentation.LookupCounter.Add(1, new KeyValuePair<string, object?>("cache.result", "hit"));
 
@@ -60,10 +60,10 @@ public class RedisSourcingCache(
     }
 
     public async Task SetAsync(
-        string ingredientName, double lat, double lng, IReadOnlyList<StoreOffer> offers,
+        string scope, double lat, double lng, IReadOnlyList<StoreOffer> offers,
         CancellationToken cancellationToken)
     {
-        var key = BuildKey(ingredientName, lat, lng);
+        var key = BuildKey(scope, lat, lng);
         using var activity = SourcingCacheInstrumentation.ActivitySource.StartActivity("sourcing.cache.set");
         activity?.SetTag("sourcing.cache.key", key);
 
@@ -80,6 +80,9 @@ public class RedisSourcingCache(
         }
     }
 
-    private static string BuildKey(string ingredientName, double lat, double lng) =>
-        string.Create(CultureInfo.InvariantCulture, $"sourcing:v1:{ingredientName.Trim().ToLowerInvariant()}:{Math.Round(lat, 2)}:{Math.Round(lng, 2)}");
+    // v2: the key's identity segment changed from always-an-ingredient-name to a caller-supplied
+    // scope (see ISourcingCache) when the confirmed/general split was introduced -- bumped so
+    // stale v1 entries (a different key shape/meaning) are simply never read, not misread.
+    private static string BuildKey(string scope, double lat, double lng) =>
+        string.Create(CultureInfo.InvariantCulture, $"sourcing:v2:{scope.Trim().ToLowerInvariant()}:{Math.Round(lat, 2)}:{Math.Round(lng, 2)}");
 }

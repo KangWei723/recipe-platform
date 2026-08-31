@@ -12,11 +12,21 @@ public record StoreOfferDto(
     decimal? Price,
     string? Currency,
     bool IsSimulated,
-    string? PlaceId
+    string? PlaceId,
+    string? StoreId,
+    string? ProductId,
+    string? ProductName
 );
 
 public record NearbySourcingDto(
     string IngredientName,
+    double Lat,
+    double Lng,
+    IReadOnlyList<StoreOfferDto> Results
+);
+
+// General, ingredient-agnostic lookup response -- no IngredientName, unlike NearbySourcingDto.
+public record NearbyGeneralSourcingDto(
     double Lat,
     double Lng,
     IReadOnlyList<StoreOfferDto> Results

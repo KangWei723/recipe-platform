@@ -150,13 +150,29 @@ a {
 
 .navbar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 16px;
+  gap: 24px;
   flex-wrap: wrap;
   padding: 16px 32px;
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-divider);
+}
+
+.navbar-wordmark {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--color-text);
+  letter-spacing: -0.01em;
+}
+
+.navbar-right {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex: 1;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .navbar-links {
@@ -469,6 +485,7 @@ a {
 
 .recipe-meta {
   display: flex;
+  align-items: center;
   gap: 14px;
   font-family: var(--font-mono);
   font-size: 0.72rem;
@@ -478,6 +495,49 @@ a {
   border-top: 1px dotted var(--color-border);
   padding-top: 10px;
   margin-top: 10px;
+}
+
+.servings-adjuster {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.servings-adjuster button {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1;
+  background: transparent;
+  color: var(--color-muted-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.servings-adjuster button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.servings-value {
+  min-width: 1.2em;
+  text-align: center;
+  color: var(--color-text);
+}
+
+.servings-adjuster button.servings-reset {
+  width: auto;
+  height: auto;
+  padding: 1px 6px;
+  border: none;
+  text-decoration: underline;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* ---------- Ingredients ---------- */
@@ -1028,6 +1088,64 @@ label {
 
 .nearby-stores-list li {
   padding: 3px 0;
+}
+
+.general-stores-section {
+  border-bottom: 1px dotted var(--color-border);
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+}
+
+.general-stores-section .panel-subtitle {
+  margin: 0 0 8px;
+}
+
+.kroger-results-panel {
+  border-bottom: 1px dotted var(--color-border);
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+}
+
+.kroger-results-panel .panel-subtitle {
+  margin: 0 0 8px;
+}
+
+.kroger-store-group {
+  background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface));
+  border-left: 2px solid var(--color-primary);
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.kroger-store-group:last-child {
+  margin-bottom: 0;
+}
+
+.kroger-store-heading {
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+.kroger-store-heading a {
+  color: var(--color-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.kroger-store-heading a:hover {
+  color: var(--color-primary);
+}
+
+.kroger-product-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  list-style: disc;
+  font-size: 0.92rem;
+  color: var(--color-muted-text);
+}
+
+.kroger-product-list li {
+  padding: 2px 0;
 }
 
 /* ---------- Responsive ---------- */

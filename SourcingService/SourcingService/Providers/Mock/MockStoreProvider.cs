@@ -10,6 +10,11 @@ public class MockStoreProvider : IStoreProvider
 {
     public string Name => "Mock";
 
+    // Never actually consulted for routing -- Mock isn't in the DI-registered IStoreProvider
+    // collection SourcingAggregatorService filters (see Program.cs), it's injected and invoked
+    // separately as the general-flow-only fallback. Still required to satisfy the interface.
+    public bool IsIngredientSpecific => false;
+
     public Task<IReadOnlyList<StoreOffer>> FindNearbyAsync(
         string ingredientName, double lat, double lng, CancellationToken cancellationToken)
     {

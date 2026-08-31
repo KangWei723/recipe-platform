@@ -5,6 +5,7 @@ namespace SourcingService.Providers.Kroger;
 public class KrogerStoreProvider(IKrogerClient krogerClient) : IStoreProvider
 {
     public string Name => "Kroger";
+    public bool IsIngredientSpecific => true;
 
     public async Task<IReadOnlyList<StoreOffer>> FindNearbyAsync(
         string ingredientName, double lat, double lng, CancellationToken cancellationToken)
@@ -32,7 +33,12 @@ public class KrogerStoreProvider(IKrogerClient krogerClient) : IStoreProvider
             Price: price,
             Currency: price is null ? null : "USD",
             IsSimulated: false,
-            PlaceId: null);
+            PlaceId: null,
+            StoreId: location.LocationId,
+            ProductId: product.ProductId,
+            // Description is nullable in Kroger's response; fall back to something identifiable
+            // rather than surfacing a blank product name in a grouped list.
+            ProductName: product.Description ?? $"Item {product.ProductId}");
     }
 
     private static string? FormatAddress(KrogerAddress? address) =>

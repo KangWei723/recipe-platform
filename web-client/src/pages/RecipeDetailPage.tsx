@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useClient, useMutation, useQuery } from 'urql';
 import { useIsAdmin } from '../auth/useIsAdmin';
-import { NearbyStoresFinder } from '../components/NearbyStoresFinder';
+import { ConfirmedStoreLookup } from '../components/ConfirmedStoreLookup';
+import { KrogerResultsPanel, type KrogerStoreGroup } from '../components/KrogerResultsPanel';
+import { NearbyStoresBrowser } from '../components/NearbyStoresBrowser';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,10 +18,55 @@ import {
 } from '../components/ui/alert-dialog';
 import { Button, buttonVariants } from '../components/ui/button';
 import { DELETE_RECIPE_MUTATION, RECIPE_QUERY, RECIPES_QUERY } from '../graphql/queries';
-import type { RecipeDetail } from '../graphql/types';
+import type { RecipeDetail, StoreOffer } from '../graphql/types';
 import { useUnits } from '../graphql/useUnits';
+import { distanceMiles } from '../utils/distance';
 import { formatMutationError } from '../utils/errors';
 import { formatQuantity } from '../utils/quantity';
+import { useGeolocation } from '../utils/useGeolocation';
+
+// Folds newly-found Kroger offers into the existing store groups, keyed by StoreId -- offers
+// from different ingredient searches routinely resolve to the same nearest store (Kroger's
+// location lookup depends only on lat/lng, not the ingredient), so this is the common case, not
+// an edge case. Products are deduped by ProductId within a store so re-clicking "Check again" on
+// the same ingredient doesn't add a repeat row.
+function mergeKrogerOffers(
+  groups: KrogerStoreGroup[],
+  offers: StoreOffer[],
+  userLat: number,
+  userLng: number,
+): KrogerStoreGroup[] {
+  const next = groups.map((g) => ({ ...g, products: [...g.products] }));
+
+  for (const offer of offers) {
+    if (!offer.storeId || !offer.productId || !offer.productName) continue;
+
+    let group = next.find((g) => g.storeId === offer.storeId);
+    if (!group) {
+      group = {
+        storeId: offer.storeId,
+        storeName: offer.storeName,
+        lat: offer.lat,
+        lng: offer.lng,
+        distanceMiles:
+          offer.lat !== null && offer.lng !== null ? distanceMiles(userLat, userLng, offer.lat, offer.lng) : null,
+        products: [],
+      };
+      next.push(group);
+    }
+
+    if (!group.products.some((p) => p.productId === offer.productId)) {
+      group.products.push({
+        productId: offer.productId,
+        productName: offer.productName,
+        price: offer.price,
+        currency: offer.currency,
+      });
+    }
+  }
+
+  return next;
+}
 
 export function RecipeDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -28,6 +75,7 @@ export function RecipeDetailPage() {
   const client = useClient();
   const isAdmin = useIsAdmin();
   const { isFractionalFriendly } = useUnits();
+  const { getLocation } = useGeolocation();
 
   // network-only, not the default cache-first: this recipe's ingredients carry an inPantry
   // flag computed from the user's pantry, which can change from an entirely different page
@@ -43,6 +91,19 @@ export function RecipeDetailPage() {
   const [, deleteRecipe] = useMutation(DELETE_RECIPE_MUTATION);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [scaledServings, setScaledServings] = useState<number | null>(null);
+  const [krogerGroups, setKrogerGroups] = useState<KrogerStoreGroup[]>([]);
+
+  function handleKrogerFound(offers: StoreOffer[], userLat: number, userLng: number) {
+    setKrogerGroups((prev) => mergeKrogerOffers(prev, offers, userLat, userLng));
+  }
+
+  // Resets the adjusted serving count whenever the loaded recipe changes -- navigating from one
+  // recipe's detail page to another (a route param change, not a remount) would otherwise carry
+  // over the previous recipe's scaling.
+  useEffect(() => {
+    setScaledServings(data?.recipe?.servings ?? null);
+  }, [data?.recipe?.id, data?.recipe?.servings]);
 
   if (fetching) return <p>Loading recipe...</p>;
   if (error) return <p className="error-message">Failed to load recipe: {error.message}</p>;
@@ -50,6 +111,7 @@ export function RecipeDetailPage() {
 
   const recipe = data.recipe;
   const sortedSteps = [...recipe.steps].sort((a, b) => a.stepNumber - b.stepNumber);
+  const scaleRatio = recipe.servings && scaledServings ? scaledServings / recipe.servings : 1;
 
   async function handleDelete() {
     setDeleteError(null);
@@ -107,7 +169,32 @@ export function RecipeDetailPage() {
           <div className="recipe-meta">
             {recipe.prepTimeMin != null && <span>PREP {recipe.prepTimeMin}m</span>}
             {recipe.cookTimeMin != null && <span>COOK {recipe.cookTimeMin}m</span>}
-            {recipe.servings != null && <span>SERVES {recipe.servings}</span>}
+            {recipe.servings != null && (
+              <span className="servings-adjuster">
+                SERVES
+                <button
+                  type="button"
+                  aria-label="Decrease servings"
+                  disabled={(scaledServings ?? recipe.servings) <= 1}
+                  onClick={() => setScaledServings((s) => Math.max(1, (s ?? recipe.servings!) - 1))}
+                >
+                  &minus;
+                </button>
+                <span className="servings-value">{scaledServings ?? recipe.servings}</span>
+                <button
+                  type="button"
+                  aria-label="Increase servings"
+                  onClick={() => setScaledServings((s) => (s ?? recipe.servings!) + 1)}
+                >
+                  +
+                </button>
+                {scaledServings !== recipe.servings && (
+                  <button type="button" className="servings-reset" onClick={() => setScaledServings(recipe.servings)}>
+                    Reset
+                  </button>
+                )}
+              </span>
+            )}
           </div>
 
           <div className="section-divider" />
@@ -130,6 +217,8 @@ export function RecipeDetailPage() {
               {haveCount}/{recipe.ingredients.length} ON SHELF
             </span>
           </div>
+          <KrogerResultsPanel groups={krogerGroups} />
+          {haveCount < recipe.ingredients.length && <NearbyStoresBrowser getLocation={getLocation} />}
           {recipe.ingredients.map((ingredient) => {
             // The top-ranked substitute only -- ingredient.substitutions carries a full ranked
             // array (ratio/confidence/contexts per candidate), but a single best suggestion
@@ -141,7 +230,8 @@ export function RecipeDetailPage() {
                   <span className="ingredient-dot" aria-hidden="true" />
                   <span className="sr-only">{ingredient.inPantry ? 'In pantry' : 'Missing'}</span>
                   <span className="ingredient-qty">
-                    {formatQuantity(ingredient.quantity, isFractionalFriendly(ingredient.unit))} {ingredient.unit}
+                    {formatQuantity(ingredient.quantity * scaleRatio, isFractionalFriendly(ingredient.unit))}{' '}
+                    {ingredient.unit}
                   </span>
                   <span className="ingredient-name">
                     {ingredient.ingredientName}
@@ -156,7 +246,11 @@ export function RecipeDetailPage() {
                         Try instead: <strong>{topSub.substituteName}</strong>
                       </p>
                     )}
-                    <NearbyStoresFinder ingredientName={ingredient.ingredientName} />
+                    <ConfirmedStoreLookup
+                      ingredientName={ingredient.ingredientName}
+                      getLocation={getLocation}
+                      onFound={handleKrogerFound}
+                    />
                   </div>
                 )}
               </div>

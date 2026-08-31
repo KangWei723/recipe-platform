@@ -1,4 +1,4 @@
-# Recipe Platform
+# Larder
 
 A recipe app — browse/create recipes, track a pantry, get ingredient substitutions, find nearby
 stores that sell what you're missing — built as a distributed system: five independently

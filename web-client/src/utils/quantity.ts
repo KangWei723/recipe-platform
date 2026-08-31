@@ -18,8 +18,6 @@ const COMMON_FRACTIONS: [numerator: number, denominator: number][] = [
   [7, 8],
 ];
 
-const FRACTION_TOLERANCE = 0.02;
-
 export function parseQuantityInput(input: string, fractionalFriendly: boolean): number | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
@@ -40,21 +38,31 @@ export function parseQuantityInput(input: string, fractionalFriendly: boolean): 
 
 export function formatQuantity(value: number, fractionalFriendly: boolean): string {
   if (!fractionalFriendly) {
-    return String(value);
+    // Matches recipe_ingredients.quantity's own NUMERIC(10,2) precision -- a no-op for any
+    // stored value, but keeps a scaled quantity (e.g. 1 * 5/3) from printing as a long float.
+    return String(Number(value.toFixed(2)));
   }
 
   const whole = Math.floor(value + 1e-9);
   const remainder = value - whole;
 
-  if (remainder < FRACTION_TOLERANCE) {
-    return String(whole);
-  }
-
-  for (const [numerator, denominator] of COMMON_FRACTIONS) {
-    if (Math.abs(remainder - numerator / denominator) < FRACTION_TOLERANCE) {
-      return whole > 0 ? `${whole} ${numerator}/${denominator}` : `${numerator}/${denominator}`;
+  // Always snap to whichever candidate -- no fraction, one of the common cooking fractions, or
+  // rounding up to the next whole number -- is numerically closest, rather than only matching
+  // within a tight tolerance and otherwise falling back to a raw float. A scaled quantity (e.g.
+  // servings scaling produces 0.9583333...) rarely lands exactly on a common fraction, but it
+  // should still read as "1", not "0.9583333333333334".
+  const candidates: [numerator: number, denominator: number][] = [[0, 1], ...COMMON_FRACTIONS, [1, 1]];
+  let [bestNumerator, bestDenominator] = candidates[0];
+  let bestDiff = Math.abs(remainder);
+  for (const [numerator, denominator] of candidates) {
+    const diff = Math.abs(remainder - numerator / denominator);
+    if (diff < bestDiff) {
+      [bestNumerator, bestDenominator] = [numerator, denominator];
+      bestDiff = diff;
     }
   }
 
-  return String(value);
+  if (bestNumerator === 0) return String(whole);
+  if (bestNumerator === bestDenominator) return String(whole + 1);
+  return whole > 0 ? `${whole} ${bestNumerator}/${bestDenominator}` : `${bestNumerator}/${bestDenominator}`;
 }

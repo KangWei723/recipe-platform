@@ -105,4 +105,9 @@ export interface StoreOffer {
   currency: string | null;
   isSimulated: boolean;
   placeId: string | null;
+  // Populated only for confirmed, per-product results (Kroger) -- null for general locator
+  // results (Google Places), which are stores, not individual products.
+  storeId: string | null;
+  productId: string | null;
+  productName: string | null;
 }

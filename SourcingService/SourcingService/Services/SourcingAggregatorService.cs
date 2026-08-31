@@ -16,51 +16,87 @@ public class SourcingAggregatorService(
     private const int MaxResults = 8;
     private const double EarthRadiusMiles = 3958.8;
 
-    public async Task<NearbySourcingResponse> FindNearbyAsync(
+    // General-locator providers (Google Places today) ignore their ingredientName argument by
+    // contract -- see IStoreProvider.IsIngredientSpecific -- so there's no real value to pass
+    // here. Also used for the Mock fallback in FindGeneralAsync, which has no ingredient to seed
+    // its placeholder price from in this flow either.
+    private const string NoIngredient = "";
+
+    public async Task<NearbySourcingResponse> FindConfirmedAsync(
         string ingredientName, double lat, double lng, CancellationToken cancellationToken)
     {
-        var cached = await cache.GetAsync(ingredientName, lat, lng, cancellationToken);
+        var scope = $"confirmed:{ingredientName.Trim().ToLowerInvariant()}";
+        var cached = await cache.GetAsync(scope, lat, lng, cancellationToken);
         if (cached is not null)
         {
-            // Cache hit: return immediately without racing the real providers at all.
             var cacheDiagnostic = new ProviderDiagnostic("Cache", ProviderOutcome.Succeeded, 0, null);
             return new NearbySourcingResponse(ingredientName, lat, lng, cached, [cacheDiagnostic]);
         }
 
-        // Every real provider is raced against its own timeout in parallel, so
-        // Task.WhenAll returns as soon as the slowest one finishes or hits the
-        // 3s cap -- a single slow/failed provider never blocks the others.
-        var calls = await Task.WhenAll(providers.Select(
+        var confirmedProviders = providers.Where(p => p.IsIngredientSpecific);
+        var (offers, diagnostics) = await RunProvidersAsync(confirmedProviders, ingredientName, lat, lng, cancellationToken);
+
+        // No Mock fallback here, deliberately: this flow's whole point is "found" vs. "not
+        // found," not "here's a placeholder guess" -- an empty result stays empty.
+        if (offers.Count > 0)
+        {
+            await cache.SetAsync(scope, lat, lng, offers, cancellationToken);
+        }
+
+        return new NearbySourcingResponse(ingredientName, lat, lng, offers, diagnostics);
+    }
+
+    public async Task<NearbyGeneralSourcingResponse> FindGeneralAsync(
+        double lat, double lng, CancellationToken cancellationToken)
+    {
+        const string scope = "general";
+        var cached = await cache.GetAsync(scope, lat, lng, cancellationToken);
+        if (cached is not null)
+        {
+            var cacheDiagnostic = new ProviderDiagnostic("Cache", ProviderOutcome.Succeeded, 0, null);
+            return new NearbyGeneralSourcingResponse(lat, lng, cached, [cacheDiagnostic]);
+        }
+
+        var generalProviders = providers.Where(p => !p.IsIngredientSpecific);
+        var (offers, diagnostics) = await RunProvidersAsync(generalProviders, NoIngredient, lat, lng, cancellationToken);
+        var usedMockFallback = false;
+
+        if (offers.Count == 0)
+        {
+            var mockCall = await CallProviderAsync(mockProvider, NoIngredient, lat, lng, cancellationToken);
+            offers = mockCall.Offers.ToList();
+            diagnostics = [.. diagnostics, mockCall.Diagnostic];
+            usedMockFallback = true;
+        }
+
+        // Same "don't cache empty or simulated results" rule as the confirmed flow -- a
+        // transient failure shouldn't be pinned in place for the full TTL.
+        if (offers.Count > 0 && !usedMockFallback)
+        {
+            await cache.SetAsync(scope, lat, lng, offers, cancellationToken);
+        }
+
+        return new NearbyGeneralSourcingResponse(lat, lng, offers, diagnostics);
+    }
+
+    // Races the given providers against their own timeout in parallel (a single slow/failed
+    // provider never blocks the others -- see CallProviderAsync), then sorts/caps here so every
+    // caller gets the closest MaxResults stores using the same origin coordinate that was
+    // searched from.
+    private async Task<(IReadOnlyList<StoreOffer> Offers, IReadOnlyList<ProviderDiagnostic> Diagnostics)> RunProvidersAsync(
+        IEnumerable<IStoreProvider> selectedProviders, string ingredientName, double lat, double lng,
+        CancellationToken cancellationToken)
+    {
+        var calls = await Task.WhenAll(selectedProviders.Select(
             provider => CallProviderAsync(provider, ingredientName, lat, lng, cancellationToken)));
 
-        // Sorted/capped here (rather than left to the client) so every caller --
-        // the standalone lookup and the nested per-ingredient resolver alike --
-        // gets the closest MaxResults stores using the same origin coordinate
-        // that was searched from, and so cached entries store the final list.
         var offers = calls.SelectMany(call => call.Offers)
             .OrderBy(offer => DistanceMiles(lat, lng, offer.Lat, offer.Lng) ?? double.MaxValue)
             .Take(MaxResults)
             .ToList();
         var diagnostics = calls.Select(call => call.Diagnostic).ToList();
-        var usedMockFallback = false;
 
-        if (offers.Count == 0)
-        {
-            var mockCall = await CallProviderAsync(mockProvider, ingredientName, lat, lng, cancellationToken);
-            offers = mockCall.Offers.ToList();
-            diagnostics.Add(mockCall.Diagnostic);
-            usedMockFallback = true;
-        }
-
-        // Don't cache empty or simulated results -- a transient provider failure
-        // shouldn't be pinned in place for the full TTL when a retry soon after
-        // might reach the real providers successfully.
-        if (offers.Count > 0 && !usedMockFallback)
-        {
-            await cache.SetAsync(ingredientName, lat, lng, offers, cancellationToken);
-        }
-
-        return new NearbySourcingResponse(ingredientName, lat, lng, offers, diagnostics);
+        return (offers, diagnostics);
     }
 
     private async Task<(IReadOnlyList<StoreOffer> Offers, ProviderDiagnostic Diagnostic)> CallProviderAsync(
