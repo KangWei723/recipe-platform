@@ -1,101 +1,115 @@
 # Larder — Design Doc
 
-## Purpose
+## Overview
 
-Solo portfolio project built to demonstrate distributed systems, microservices, API design, concurrency, observability, and event-driven/workflow-orchestration skills for backend engineering roles. The product surface (a recipe app with ingredient substitution and "find it nearby" sourcing) is the vehicle; the architecture is the point.
+Larder is a pantry-aware recipe app: recipes, a per-user pantry, ranked "what can I cook right
+now" matching, ingredient substitutions, and real grocery pricing/store lookup for whatever
+you're missing. It started as a solo portfolio project meant to demonstrate distributed-systems
+engineering — service boundaries, partial-failure handling, concurrency, observability, and
+event-driven design — with the recipe/pantry domain as the vehicle rather than the point.
 
-## Production usage shift (2026-08-04)
+That changed in August 2026: a small group of real people started using it. That raised the bar
+on several things that had been "good enough for a demo" — real authentication, real per-user
+data isolation, and reliability as a goal in its own right rather than something to demonstrate
+on paper — and drove most of the decisions recorded below.
 
-**Read this before making further architectural decisions.**
-
-The goal has expanded beyond a portfolio demo: a small group of real users will actually use this app. That changes what matters, on top of the qualification-mapping goals below:
-
-- **Real auth is now required** — see the audit below; none currently exists.
-- **Real data isolation between users is now required** — not just a schema column.
-- **Reliability now matters** for its own sake, not just as something to demonstrate.
-
-**Production deployment target:** Render, for the .NET services. Kroger's Production API is now available as a deployment target alongside the Certification environment, which remains what local dev points at (see flag #5 below — the code currently only knows about Certification).
-
-**Decision — local dev/demo keeps the full distributed architecture; production is simplified:**
-- Neo4j (substitution graph) ships to production, not simplified away.
-- QStash and the full observability stack (OpenTelemetry/Jaeger/Prometheus/Grafana) stay **dev-only** and do not run in production.
-
-**Flag — this is in tension with "reliability now matters":** dropping the observability stack from production means zero tracing/metrics visibility into real user-facing incidents, which is the exact thing reliability work depends on. Worth revisiting before launch: at minimum, structured logs plus some production-friendly uptime/error-rate signal (e.g. a hosted logging/APM tier, even a lightweight one) probably needs to exist in prod, even though the full local Jaeger/Prometheus/Grafana stack doesn't come along.
-
-**What was already built assuming "demo only," audited against the current code, and needing reconsideration now:**
-
-1. ~~**No authentication exists anywhere in the platform.**~~ **Resolved 2026-08-05**: all four backend services (Recipe/Pantry/Substitution/Sourcing) validate Auth0 JWT bearer tokens (issuer = tenant domain, audience = `https://recipemate.api`) via a shared `Auth` project (`Auth.AddAuth0Authentication`), with a global fallback policy requiring an authenticated user by default — endpoints opt **out** with `[AllowAnonymous]` (health checks, the two QStash webhook controllers, which keep their own HMAC check) rather than opting in, so newly added endpoints are locked down unless someone deliberately opens them. Gateway itself doesn't validate — it forwards the caller's Authorization header to every downstream call via `AuthHeaderForwardingHandler` and lets each backend service enforce its own auth. Verified end-to-end with a real Auth0-issued user token (see #2/#3 below), not just unit-level config checks.
-2. ~~**PantryService's per-user isolation is enforced at the query level but not at the identity level.**~~ **Resolved 2026-08-05**: the `{userId}` route parameter is gone entirely (`api/pantry/users/{userId}` → `api/pantry`); every action resolves the caller's numeric id via `ICurrentUserResolver`, which reads the token's `sub` claim and calls RecipeService's `/api/users/me` (5-minute in-memory cache to avoid a cross-service round trip on every request). Verified live: a real token wrote a pantry item under the resolved numeric id and read it back correctly, with zero client-supplied identity anywhere in the request.
-3. ~~**Only RecipeService has a `users` table**, and no service reads identity from a JWT claim...~~ **Resolved 2026-08-05**: RecipeService's `users` table gained an `auth0_sub` column (unique, nullable for pre-existing rows); `POST /api/users/me` resolves-or-JIT-provisions a user record from the validated token's `sub` claim (with a retry-on-unique-violation for the concurrent-first-login race), and every other service goes through this same endpoint rather than inventing its own identity source. `RecipesController.Create` was also fixed the same way — `AuthorId` used to be a client-supplied request field (the same spoofing pattern as Pantry's old bug); it's now derived from the resolved current user. A Post-Login Action was added 2026-08-09 to populate the `email`/`name` claims on the token, so JIT-provisioned users now get real values instead of placeholders.
-4. **The QStash `ingredient.missing` event carries a `UserId` field, but it's inert.** Both SourcingService's and SubstitutionService's webhook handlers only log it — there's no per-user scoping of downstream action yet, since both handlers are still stubs. This will matter once they do real work.
-5. ~~**Kroger integration currently targets the Certification environment** with Certification credentials only.~~ **Resolved 2026-08-04**: `KrogerOptions` now has a `Kroger:Environment` switch (`Certification`/`Production`), each with its own `BaseUrl`/`ClientId`/`ClientSecret`. Local dev defaults to Certification (`api-ce.kroger.com`); Render's production deployment sets `Kroger__Environment=Production` plus `Kroger__Production__ClientId`/`ClientSecret` as env vars. Verified end-to-end against the real `api.kroger.com` Production API (token refresh, location lookup, and product search all succeeded, real store/prices returned).
-6. ~~**Gateway CORS is deliberately permissive**~~ **Resolved 2026-08-05**: replaced with a config-driven allowlist (`Cors:AllowedOrigins`), defaulting to common local SPA dev ports. The React web-client (`web-client/`, added 2026-08-09) runs on one of those defaults (`localhost:5173`) locally — add the real deployed origin once one exists.
-
-## Qualification → architecture mapping
-
-| Requirement | Where it shows up |
-|---|---|
-| Distributed systems experience | Multiple independently-deployable services communicating over the network, with partial-failure handling (timeouts, retries, circuit breaking) |
-| Java/C# + OO design | Services in Java (Spring Boot) or C# (.NET). Strategy pattern for substitution algorithms, Factory for grocery-provider integrations, Repository pattern for data access |
-| Multithreading/parallelism + observability | Parallel async calls to multiple store/pricing providers in the Sourcing service; OpenTelemetry tracing + Prometheus/Grafana across all services |
-| Microservices, data modeling, API design | Recipe, Pantry, Substitution, Sourcing services; relational schema + graph schema; GraphQL (external) + gRPC (internal) |
-| Communicating complex ideas | This doc, plus ADRs per major decision, plus a README with diagrams |
-| On-call + incident reviews | Simulated: alerting rules, deliberate fault injection, written postmortem using a real incident-review template |
-| Infra/platform experience | Docker, Terraform, CI/CD, optionally k8s |
-| gRPC/GraphQL | External-facing GraphQL gateway (HotChocolate) is built. Internal gRPC was planned but not built — see [Considered, not implemented](#considered-not-implemented) |
-| Cloud storage, data platform, event-driven, ontology, workflow orchestration | Neo4j substitution graph (ontology) is built; event-driven flow uses QStash (not Kafka — see [System architecture](#system-architecture)). S3 image storage and Temporal workflow orchestration were planned but not built — see [Considered, not implemented](#considered-not-implemented) |
-| AI-assisted dev + tool vetting | Running log of AI coding tools used, where they helped vs. didn't |
+This doc covers the architecture as it stands, the reasoning behind the choices that shaped it
+(including ones that were later reversed or abandoned), and an honest accounting of what's
+actually built versus what was planned. It was built with extensive use of
+[Claude Code](https://claude.com/claude-code) throughout — see the README for more on that.
 
 ## System architecture
 
-**web-client** (React + urql, `web-client/`) → **GraphQL gateway** (HotChocolate, aggregates service calls) → four backend services:
+```
+web-client (React + urql)
+        │
+        ▼
+    Gateway (GraphQL, HotChocolate)
+        │  forwards the caller's bearer token to each service; doesn't validate it itself
+        ├──────────────┬──────────────────┬──────────────────┐
+        ▼              ▼                  ▼                  ▼
+  RecipeService   PantryService   SubstitutionService   SourcingService
+  (Postgres)      (Postgres)      (Neo4j)               (Kroger + Google Places, Redis-cached)
+```
 
-- **Recipe service** — recipes, steps, ingredient catalog. Owns Postgres tables: `recipes`, `recipe_steps`, `recipe_ingredients`, `ingredients`, `users`.
-- **Pantry service** — per-user ingredient inventory. Owns `pantry_items`.
-- **Substitution service** — ingredient substitution logic, backed by a Neo4j graph (see Data model below).
-- **Sourcing service** — "where can I buy this" lookups. Fires parallel async calls to multiple providers (Google Places, Kroger), aggregates with a timeout. Caches results in Redis.
+- **RecipeService** — recipes, steps, the shared ingredient catalog, and user identity. Owns
+  Postgres tables `recipes`, `recipe_steps`, `recipe_ingredients`, `ingredients`, `users`.
+  Also computes recipe-matching ("given these ingredient ids, rank recipes by how much of each
+  you already have") server-side, since it already loads every recipe's ingredients to build the
+  plain recipe list — doing that ranking anywhere else would mean an expensive extra round trip.
+- **PantryService** — per-user, presence-only ingredient inventory (owns `pantry_items`). Calls
+  RecipeService's API for ingredient/recipe data rather than joining across service databases,
+  and publishes an `ingredient.missing` event when a recipe needs something the caller doesn't
+  have.
+- **SubstitutionService** — ranked ingredient-substitution lookups backed by a Neo4j graph (see
+  [Substitution model](#substitution-model-relational-table--neo4j-graph) below).
+- **SourcingService** — "where can I buy this" lookups. Fires parallel calls to multiple store
+  providers (Kroger for confirmed per-ingredient pricing, Google Places for general nearby
+  stores), each raced against its own timeout so one slow provider never blocks the others,
+  results cached in Redis.
 
-Cross-cutting infrastructure:
+Each service owns its schema exclusively — there is no shared database and no cross-service SQL
+join. If Pantry needs an ingredient's name, it calls Recipe's API. This constraint is deliberate:
+it forces real API design at the service boundary instead of a distributed system that quietly
+behaves like one big database.
 
-- **QStash event bus** (Upstash-hosted; dev-only, see production note above) — decouples detection from action. Example event: `ingredient.missing` (emitted by Pantry when a recipe requires something the user doesn't have), delivered via signed webhook to SubstitutionService and SourcingService. Both handlers currently only log the event (see flag #4 above) — no downstream action is wired up yet.
-- **Observability stack** — OpenTelemetry tracing across every service, Prometheus metrics, Grafana dashboards + alerting rules (dev-only, see production note above).
+**Cross-cutting infrastructure:**
 
-Temporal workflow orchestration and S3-compatible image storage were part of the original plan but were never built — see [Considered, not implemented](#considered-not-implemented).
+- **QStash** (Upstash-hosted, dev-only — see [Production scope](#production-scope-what-ships-to-render)) —
+  decouples detection from action. `ingredient.missing` is published by PantryService and
+  delivered via signed webhook to both SubstitutionService and SourcingService. Both handlers
+  currently just log the event; no downstream action (auto-searching stores, suggesting a
+  substitute) is wired up yet.
+- **Observability** (dev-only) — OpenTelemetry tracing across every service, Prometheus metrics,
+  Grafana dashboards and alerting rules. QStash's async webhook deliveries pick up the
+  publisher's `traceparent` header, so a consumer span nests under the original request's trace
+  instead of starting a disconnected one.
+- **Auth0** — every backend service validates JWT bearer tokens itself (issuer = tenant domain,
+  audience `https://recipemate.api`), with an authenticated-by-default fallback policy —
+  endpoints opt **out** with `[AllowAnonymous]` (health checks, the two QStash webhook
+  controllers, which keep their own HMAC check) rather than opting in, so a newly added endpoint
+  is locked down unless someone deliberately opens it. Recipe/ingredient writes additionally
+  require an `admin` role, read from a custom claim (`https://recipemate.api/roles`) since Auth0
+  puts role names there rather than in the claim ASP.NET Core's built-in `RequireRole()` expects
+  — enforced via an explicit `RequireAssertion` policy, at both the Gateway (for a clean GraphQL
+  error) and RecipeService (the real boundary).
 
-Each service owns its own schema — no shared database. If Pantry needs an ingredient's name, it calls Recipe's API rather than joining across schemas. This is the constraint that forces real API design instead of SQL joins across service boundaries.
+## API design
 
-## Considered, not implemented
-
-Part of the original architecture plan (see qualification-mapping table above), never built. Recorded here so the plan/reality gap is explicit rather than silently dropped:
-
-- **gRPC between services** — planned for internal Gateway↔service calls; built as plain REST over `HttpClient` instead (see API design below). REST has been sufficient at this scale; gRPC remains a possible follow-up if internal call volume/latency ever demands it.
-- **Temporal workflow engine** — planned to orchestrate the multi-step "find this ingredient" flow (check substitution → check pantry → search stores → geocode). That flow doesn't exist yet in any form, hand-rolled or otherwise.
-- **S3-compatible image storage** — planned for recipe images. `recipes.image_url` is a plain string column with no upload/storage pipeline behind it.
+- **External** — GraphQL gateway (HotChocolate), the web-client's single entry point:
+  - Queries: `recipe(id)`, `recipes`, `ingredients`, `units`, `ingredientCategories`,
+    `pantryItems`, `recipeMatches(ingredientIds)`, `confirmedStoreOffer(ingredientName, lat, lng)`,
+    `nearbyStoresGeneral(lat, lng)`, plus a nested `RecipeIngredient.substitutions` resolver.
+  - Mutations: `upsertPantryItem`, `removePantryItem`, and admin-only `createRecipe`,
+    `updateRecipe`, `deleteRecipe`, `createIngredient`, `updateIngredient`, `deleteIngredient`.
+  - None of the pantry or recipe-authoring operations take a caller/user id argument — identity
+    always comes from the forwarded bearer token, never from a client-supplied value (see
+    [Authentication and authorization](#authentication-and-authorization-for-real-users) below).
+- **Internal** — plain REST over `HttpClient` between Gateway and each backend service. gRPC was
+  the original plan; see [Internal service calls](#internal-service-calls-grpc-planned--rest).
+- **Events** — QStash webhook delivery, e.g. `ingredient.missing`; see
+  [Event bus](#event-bus-kafka--qstash) below.
 
 ## Data model
 
 ### Relational core (Postgres, split by service ownership)
 
-- `users(id, email, name, created_at)`
-- `recipes(id, author_id FK, title, description, servings, prep_time_min, cook_time_min, image_url, created_at)` — Recipe service
-- `recipe_steps(id, recipe_id FK, step_number, instruction, timer_seconds)` — Recipe service
-- `ingredients(id, name, category, default_unit)` — Recipe service (shared catalog)
-- `recipe_ingredients(id, recipe_id FK, ingredient_id FK, quantity, unit, optional)` — Recipe service
-- `pantry_items(id, user_id FK, ingredient_id FK, updated_at)` — Pantry service (presence-only: has the ingredient or doesn't, no quantity/unit/expiry tracking)
-- `stores(id, place_id, name, address, lat, lng)` — Sourcing service (cached from Google Places)
-- `ingredient_prices(id, ingredient_id FK, store_id FK, price, currency, observed_at)` — Sourcing service
+- `users(id, email, name, auth0_sub, created_at)` — RecipeService
+- `recipes(id, author_id FK, title, description, servings, prep_time_min, cook_time_min, image_url, created_at)` — RecipeService
+- `recipe_steps(id, recipe_id FK, step_number, instruction, timer_seconds)` — RecipeService
+- `ingredients(id, name, category, default_unit)` — RecipeService (shared catalog; `category` and `default_unit` are validated against curated enums, not free text)
+- `recipe_ingredients(id, recipe_id FK, ingredient_id FK, quantity, unit, optional)` — RecipeService
+- `pantry_items(id, user_id FK, ingredient_id FK, updated_at)` — PantryService (presence-only: has the ingredient or doesn't, no quantity/unit/expiry tracking)
+- `stores(id, place_id, name, address, lat, lng)` — SourcingService (cached from Google Places)
+- `ingredient_prices(id, ingredient_id FK, store_id FK, price, currency, observed_at)` — SourcingService
 
-### Substitution graph (Neo4j, owned by Substitution service)
+### Substitution graph (Neo4j, owned by SubstitutionService)
 
-Nodes: `Ingredient(name, category)`
-Relationship: `SUBSTITUTES_FOR(ratio, contexts[], confidence)` — directional and weighted.
-
-Why a graph instead of a join table:
-- **Directionality/asymmetry** — applesauce can replace butter in a muffin recipe; butter can't replace applesauce in a smoothie. A symmetric join table can't express this.
-- **Context lives on the edge** — the same ingredient pair can have different ratios depending on cooking method (frying vs. baking).
-- **Transitive lookups are cheap** — "what else substitutes for something that substitutes for X" is a 2-hop traversal, not a recursive CTE.
+- Nodes: `Ingredient(name, category)`
+- Relationship: `SUBSTITUTES_FOR(ratio, contexts[], confidence)` — directional and weighted
 
 Example query — "what can I use instead of butter for baking, ranked by confidence":
+
 ```cypher
 MATCH (b:Ingredient {name: "Butter"})-[s:SUBSTITUTES_FOR]->(alt:Ingredient)
 WHERE "baking" IN s.contexts
@@ -103,41 +117,170 @@ RETURN alt.name, s.ratio, s.confidence
 ORDER BY s.confidence DESC
 ```
 
-~~**Open decision:** start the substitution logic as a plain Postgres table (`ingredient_id, substitute_id, ratio, context`) in Phase 1, and migrate to Neo4j in Phase 2 as a deliberate "outgrew the relational model" story — stronger interview narrative than starting with Neo4j from day one.~~ **Resolved**: took this path — the Postgres table shipped in Phase 1, then was retired in favor of the Neo4j-backed SubstitutionService above.
+Why this shape, and how it replaced an earlier relational design, is covered in
+[Substitution model](#substitution-model-relational-table--neo4j-graph) below.
 
-## API design
+## Key decisions
 
-- **External**: GraphQL gateway (HotChocolate), single entry point for the web-client. Current surface:
-  - Queries: `recipe(id)`, `recipes`, `ingredients`, `pantryItems`, `nearbyStores(ingredientName, lat, lng)`, plus nested resolvers `RecipeIngredient.substitutions` and `RecipeIngredient.nearbyStores(lat, lng)`.
-  - Mutations: `createRecipe`, `upsertPantryItem`, `removePantryItem`.
-  - Gateway doesn't validate the caller's token itself — it forwards the Authorization header to every downstream call and lets each backend service enforce its own auth (see #1 above).
-- **Internal**: plain REST over `HttpClient` (Gateway ↔ Recipe/Pantry/Substitution/Sourcing) — gRPC was the original plan but was never built; see [Considered, not implemented](#considered-not-implemented).
-- **Events**: QStash, e.g. `ingredient.missing` — not Kafka, see [System architecture](#system-architecture).
+The sections below are kept roughly in the order the decisions were made, including the ones
+that were later reversed — the history is the point as much as the current state is.
 
-## Build order
+### Event bus: Kafka → QStash
 
-*This is the original phase plan as written before Phase 1 started. Where reality diverged (QStash instead of Kafka, REST instead of gRPC, no Temporal), see [System architecture](#system-architecture) and [Considered, not implemented](#considered-not-implemented) above rather than this section.*
+Kafka was the original plan for the `ingredient.missing` event. It was replaced with Upstash
+QStash: a hosted, HTTP-based message queue that delivers events as signed webhook calls instead
+of requiring a broker cluster to run and operate. For a system at this scale, Kafka's operational
+overhead (partitions, consumer groups, a cluster to keep alive) bought nothing that QStash's
+simpler delivery-with-signature-verification model didn't already cover, and QStash's local dev
+server gave deterministic local testing without standing up real infrastructure. Two
+signature-verification bugs were found and fixed by testing against real QStash deliveries
+rather than trusting the SDK's documented contract at face value.
 
-**Phase 1 — MVP (2–3 weeks)**
-Recipe + Pantry services (Java/Spring Boot or C#/.NET), Postgres, simple REST or GraphQL, Dockerized, substitution as a plain lookup table. Goal: working end-to-end app.
+### Substitution model: relational table → Neo4j graph
 
-**Phase 2 — Distributed systems layer (3–4 weeks)**
-Split out Substitution and Sourcing as separate services, add gRPC between services, wire Kafka for `ingredient.missing`, integrate Google Places API with parallel async calls + timeout aggregation, add Redis caching, add OpenTelemetry + Prometheus + Grafana, migrate substitution logic to Neo4j.
+Substitution logic shipped first as a plain Postgres table
+(`ingredient_id, substitute_id, ratio, context`) — a deliberate "start simple, migrate when it's
+outgrown" sequence rather than reaching for a graph database on day one. It was then retired in
+favor of a Neo4j-backed graph once the model needed things a join table can't express cleanly:
 
-**Phase 3 — Polish (2–3 weeks)**
-Temporal workflow for the sourcing flow, Terraform + CI/CD, deliberate fault-injection exercise + written postmortem, ADRs, architecture README.
+- **Directionality/asymmetry** — applesauce can replace butter in a muffin recipe; butter can't
+  replace applesauce in a smoothie. A symmetric join table can't represent this without
+  duplicating rows and tracking direction by convention.
+- **Context lives on the edge** — the same ingredient pair can have different ratios depending on
+  cooking method (frying vs. baking), which belongs naturally on a weighted, labeled relationship
+  rather than as extra table columns multiplying the row count.
+- **Transitive lookups are cheap** — "what else substitutes for something that substitutes for
+  X" is a 2-hop graph traversal, not a recursive CTE.
 
-## On-call / incident review simulation
+The schema and an example query are in [Data model](#data-model) above.
 
-Since this is solo, on-call has to be manufactured deliberately:
-1. Set up alerting rules in Grafana (e.g. p99 latency, error rate thresholds).
-2. Run a chaos exercise — kill the Sourcing service mid-request, or throttle QStash delivery — and observe what breaks.
-3. Write a postmortem: timeline, root cause, contributing factors, action items. Use a real incident-review template (e.g. Google SRE postmortem format).
+### Authentication and authorization for real users
 
-## AI tool usage log
+Nothing in the platform validated a caller's identity before this. Once real users were in the
+picture, an audit of the existing code turned up several places where that mattered more than
+"someday":
 
-Keep a running note of which AI coding tools were used, where they helped, and where they didn't (e.g. "Claude Code scaffolded gRPC boilerplate quickly but the Temporal workflow retry semantics needed hand-tuning"). This maps directly to "actively seek out and vet new AI-driven development tools."
+- **No authentication existed anywhere.** *Fixed:* all four backend services now validate Auth0
+  JWT bearer tokens via a shared `Auth` project, authenticated-by-default (see
+  [System architecture](#system-architecture) above). Verified end-to-end with a real
+  Auth0-issued token, not just config-level checks.
+- **Pantry data could be read or written for any user.** The `{userId}` route parameter on every
+  pantry endpoint (`api/pantry/users/{userId}/...`) was taken directly from the URL — any
+  authenticated caller could substitute a different id and access someone else's pantry. *Fixed:*
+  the route parameter is gone; every action now resolves the caller's numeric id from the
+  token's `sub` claim via `ICurrentUserResolver` (with a short in-memory cache to avoid a
+  cross-service round trip on every request). Verified live: a real token wrote a pantry item
+  under its own resolved id and read it back correctly, with no client-supplied identity
+  anywhere in the request.
+- **Recipe creation trusted a client-supplied author id.** `CreateRecipeRequest.AuthorId` was a
+  plain request field — the same spoofing shape as the pantry bug above, letting a caller
+  attribute a recipe to any user id. *Fixed:* `AuthorId` is now derived the same way, from the
+  resolved current user.
+- **No service had a durable link between a Postgres user row and an Auth0 identity.** *Fixed:*
+  RecipeService's `users` table gained a unique, nullable `auth0_sub` column; `POST
+  /api/users/me` resolves-or-JIT-provisions a user from the token's `sub` claim (with a
+  retry-on-unique-violation for the concurrent-first-login race), and every other service goes
+  through this same endpoint rather than inventing its own identity source. A Post-Login Action
+  was added in Auth0 to populate real `email`/`name` claims on the token, so JIT-provisioned
+  users get real values instead of placeholders.
+- **The `ingredient.missing` event carries a `UserId` that nothing uses.** Both consumers are
+  still logging stubs (see [System architecture](#system-architecture) above), so there's no
+  per-user scoping to get wrong yet — but it will matter once they do real work.
 
-## Next step
+Two of the items above (pantry access and recipe authorship) were genuine authorization
+vulnerabilities in a live sense: an authenticated user could act as a different user, not just a
+config gap. Both are called out specifically in the README's technical highlights.
 
-Hand this file to Claude Code and start Phase 1: scaffold the Recipe and Pantry services, Postgres schema, and Docker setup.
+Once auth existed, a second pass added role-gated writes: recipe and ingredient
+create/update/delete now require an `admin` role claim, enforced at both the Gateway and
+RecipeService (see [System architecture](#system-architecture) above).
+
+### Kroger environment: Certification → Production
+
+Kroger's integration originally targeted only the Certification (sandbox) environment.
+`KrogerOptions` now has a `Kroger:Environment` switch (`Certification`/`Production`), each with
+its own base URL and credentials — local dev defaults to Certification
+(`api-ce.kroger.com`), and the production deployment sets `Kroger__Environment=Production` plus
+production credentials as environment variables. Verified end-to-end against the real
+`api.kroger.com` Production API: token refresh, location lookup, and product search all
+succeeded with real store and price data returned.
+
+### CORS: permissive → allowlist
+
+Gateway's CORS policy was originally wide open. It's now a config-driven allowlist
+(`Cors:AllowedOrigins`), defaulting to common local SPA dev ports (the web-client's
+`localhost:5173` among them) — the real deployed frontend origin gets added once one exists
+outside local dev.
+
+### Internal service calls: gRPC (planned) → REST
+
+gRPC between Gateway and the backend services was part of the original plan. It was never built;
+plain REST over `HttpClient` shipped instead and has been sufficient at this system's scale and
+call volume. gRPC remains a reasonable follow-up if internal latency or throughput ever demands
+it, but there's no evidence yet that it would.
+
+### Workflow orchestration: Temporal — evaluated, not built
+
+Temporal was planned to orchestrate a multi-step "find this ingredient" flow: check
+substitutions → check pantry → search stores → geocode. That flow doesn't exist yet in any form,
+hand-rolled or orchestrated, so there was nothing yet to justify bringing in a workflow engine
+for. Recorded here as a deliberate scope decision rather than an oversight.
+
+### Image storage: S3 — planned, not built
+
+Recipe images were planned to go through S3-compatible object storage. `recipes.image_url` is
+currently a plain string column with no upload pipeline behind it.
+
+### Production scope: what ships to Render
+
+Local dev and demo usage keep the full distributed architecture. Production, deployed on Render,
+is intentionally simplified:
+
+- Neo4j ships to production — the substitution graph is core product behavior, not simplified away.
+- QStash and the full observability stack (OpenTelemetry/Jaeger/Prometheus/Grafana) stay
+  **dev-only** and do not run in production.
+
+This is a real tradeoff, not a free simplification: dropping the observability stack from
+production means no tracing/metrics visibility into real user-facing incidents — which is
+exactly what reliability work depends on. At minimum, some production-friendly signal (structured
+logs plus a hosted logging/APM tier, even a lightweight one) belongs in production even though
+the full local Jaeger/Prometheus/Grafana stack doesn't come along. This hasn't been built yet;
+it's the most honest gap between "reliability now matters" and what's actually deployed.
+
+### Original phase plan (retrospective)
+
+For context, this was the phase plan written before any code existed. Where reality diverged —
+QStash instead of Kafka, REST instead of gRPC, no Temporal — see the decisions above rather than
+this section, which is kept as-written for the record.
+
+- **Phase 1 — MVP.** Recipe + Pantry services, Postgres, a plain lookup table for substitutions,
+  Dockerized. Goal: a working end-to-end app.
+- **Phase 2 — Distributed systems layer.** Split out Substitution and Sourcing as separate
+  services, add inter-service RPC, wire an event bus for `ingredient.missing`, integrate Google
+  Places with parallel async calls and timeout aggregation, add Redis caching, add
+  OpenTelemetry/Prometheus/Grafana, migrate substitution logic to a graph database.
+  **Phase 3 — Polish.** Workflow orchestration for the sourcing flow, infra-as-code + CI/CD, a
+  deliberate fault-injection exercise with a written postmortem, architecture documentation.
+
+## Current status
+
+**Working today:** recipe browsing/creation/editing (admin-gated), pantry tracking, ranked
+recipe matching against pantry contents, ranked ingredient substitutions, real Kroger pricing and
+Google Places store lookups run in parallel with timeout/fallback handling, servings scaling,
+Auth0 login with role-based write access and JIT user provisioning, and full OpenTelemetry
+tracing/Prometheus/Grafana metrics in local dev. Production is deployed on Render against
+Kroger's real Production API.
+
+**Not built, and not pretending otherwise:**
+
+- gRPC between services (see [above](#internal-service-calls-grpc-planned--rest))
+- Temporal workflow orchestration (see [above](#workflow-orchestration-temporal--evaluated-not-built))
+- S3-style recipe image storage (see [above](#image-storage-s3--planned-not-built))
+- A deliberate on-call/incident-review simulation — alerting rules, fault injection, and a
+  written postmortem were planned as a way to manufacture on-call experience solo, but weren't
+  executed
+- Any downstream action on the `ingredient.missing` event — both consumers currently just log it
+- Unit conversion in the missing-ingredients diff — it compares quantities directly and assumes
+  the pantry item's unit already matches the recipe's
+- Production observability — see [Production scope](#production-scope-what-ships-to-render) above
+  for the honest tradeoff this represents
