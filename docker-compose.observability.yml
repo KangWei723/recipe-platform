@@ -1,6 +1,6 @@
 # Observability stack only: Jaeger (traces), Prometheus + Grafana (metrics).
-# The five app services (Gateway/RecipeService/PantryService/SubstitutionService/
-# SourcingService) are NOT run here — start them with .\start-all.ps1 as usual.
+# The four app services (Gateway/RecipeService/PantryService/SourcingService) are NOT run
+# here — start them with .\start-all.ps1 as usual.
 # They export OTLP to the collector below on localhost:4317.
 
 services:

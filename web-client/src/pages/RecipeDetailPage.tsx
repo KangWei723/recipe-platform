@@ -219,43 +219,32 @@ export function RecipeDetailPage() {
           </div>
           <KrogerResultsPanel groups={krogerGroups} />
           {haveCount < recipe.ingredients.length && <NearbyStoresBrowser getLocation={getLocation} />}
-          {recipe.ingredients.map((ingredient) => {
-            // The top-ranked substitute only -- ingredient.substitutions carries a full ranked
-            // array (ratio/confidence/contexts per candidate), but a single best suggestion
-            // reads more cleanly here than a list of alternatives.
-            const topSub = ingredient.substitutions[0];
-            return (
-              <div key={ingredient.id}>
-                <div className={`ingredient-row${ingredient.inPantry ? ' in-pantry' : ''}`}>
-                  <span className="ingredient-dot" aria-hidden="true" />
-                  <span className="sr-only">{ingredient.inPantry ? 'In pantry' : 'Missing'}</span>
-                  <span className="ingredient-qty">
-                    {formatQuantity(ingredient.quantity * scaleRatio, isFractionalFriendly(ingredient.unit))}{' '}
-                    {ingredient.unit}
-                  </span>
-                  <span className="ingredient-name">
-                    {ingredient.ingredientName}
-                    {ingredient.optional ? ' (optional)' : ''}
-                  </span>
-                </div>
-                {!ingredient.inPantry && (
-                  <div className="missing-callout">
-                    <span className="missing-callout-label">Not on the shelf</span>
-                    {topSub && (
-                      <p className="missing-callout-sub">
-                        Try instead: <strong>{topSub.substituteName}</strong>
-                      </p>
-                    )}
-                    <ConfirmedStoreLookup
-                      ingredientName={ingredient.ingredientName}
-                      getLocation={getLocation}
-                      onFound={handleKrogerFound}
-                    />
-                  </div>
-                )}
+          {recipe.ingredients.map((ingredient) => (
+            <div key={ingredient.id}>
+              <div className={`ingredient-row${ingredient.inPantry ? ' in-pantry' : ''}`}>
+                <span className="ingredient-dot" aria-hidden="true" />
+                <span className="sr-only">{ingredient.inPantry ? 'In pantry' : 'Missing'}</span>
+                <span className="ingredient-qty">
+                  {formatQuantity(ingredient.quantity * scaleRatio, isFractionalFriendly(ingredient.unit))}{' '}
+                  {ingredient.unit}
+                </span>
+                <span className="ingredient-name">
+                  {ingredient.ingredientName}
+                  {ingredient.optional ? ' (optional)' : ''}
+                </span>
               </div>
-            );
-          })}
+              {!ingredient.inPantry && (
+                <div className="missing-callout">
+                  <span className="missing-callout-label">Not on the shelf</span>
+                  <ConfirmedStoreLookup
+                    ingredientName={ingredient.ingredientName}
+                    getLocation={getLocation}
+                    onFound={handleKrogerFound}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </div>

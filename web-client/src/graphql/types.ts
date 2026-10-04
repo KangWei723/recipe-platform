@@ -8,13 +8,6 @@ export interface RecipeSummary {
   imageUrl: string | null;
 }
 
-export interface Substitution {
-  substituteName: string;
-  ratio: number;
-  contexts: string[];
-  confidence: number;
-}
-
 export interface RecipeIngredient {
   id: number;
   ingredientId: number;
@@ -23,7 +16,6 @@ export interface RecipeIngredient {
   unit: string;
   optional: boolean;
   inPantry: boolean;
-  substitutions: Substitution[];
 }
 
 export interface RecipeStep {

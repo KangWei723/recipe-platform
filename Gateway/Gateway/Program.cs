@@ -9,8 +9,6 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddObservability("gateway");
 builder.AddAuth0Authentication();
 
-builder.Services.AddGateway();
-
 // Each backend service still validates the forwarded bearer token itself and is the real
 // enforcement point -- Gateway authenticating too isn't a substitute for that, it just lets
 // Gateway reject with a clean 401/GraphQL auth error (and, via the AdminOnly policy on specific
@@ -41,23 +39,6 @@ builder.Services
     .AddStandardResilienceHandler();
 
 builder.Services
-    .AddHttpClient<ISubstitutionServiceClient, SubstitutionServiceClient>(client =>
-    {
-        var baseUrl = builder.Configuration["SubstitutionService:BaseUrl"]
-            ?? throw new InvalidOperationException("SubstitutionService:BaseUrl is not configured");
-        client.BaseAddress = new Uri(baseUrl);
-    })
-    .AddHttpMessageHandler<AuthHeaderForwardingHandler>()
-    .AddStandardResilienceHandler(options =>
-    {
-        // Substitutions are a non-critical enhancement (see SubstitutionServiceClient) -- fail
-        // fast instead of the other clients' default 30s total-request budget, so a struggling
-        // substitution-service/Neo4j can't stall the whole recipe query.
-        options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(2);
-        options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(3);
-    });
-
-builder.Services
     .AddHttpClient<ISourcingServiceClient, SourcingServiceClient>(client =>
     {
         var baseUrl = builder.Configuration["SourcingService:BaseUrl"]
@@ -68,10 +49,10 @@ builder.Services
     .AddStandardResilienceHandler(options =>
     {
         // Nearby-store lookups are a non-critical enhancement (see SourcingServiceClient) --
-        // fail fast instead of the other clients' default 30s total-request budget, same
-        // reasoning as SubstitutionService's client above. Budget is looser than
-        // SubstitutionService's (2s/3s) because sourcing-service legitimately fans out to two
-        // real external providers (Kroger, Google Places) in parallel with its own ~3s
+        // fail fast instead of the other clients' default 30s total-request budget, so a
+        // struggling sourcing-service can't stall the whole recipe query. Budget is looser
+        // (4s/6s) than a tight single-hop timeout because sourcing-service legitimately fans out
+        // to two real external providers (Kroger, Google Places) in parallel with its own ~3s
         // per-provider timeout -- this must comfortably exceed that normal-case duration.
         options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(4);
         options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(6);
@@ -98,7 +79,6 @@ builder.Services
     .AddAuthorizationHandler<GraphQLAuthorizationHandler>()
     .AddQueryType<Query>()
     .AddMutationType<Mutation>()
-    .AddTypeExtension<RecipeIngredientResolvers>()
     .AddErrorFilter<UpstreamServiceErrorFilter>()
     .ModifyRequestOptions(o => o.IncludeExceptionDetails = builder.Environment.IsDevelopment());
 

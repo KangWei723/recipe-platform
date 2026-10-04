@@ -16,7 +16,7 @@ public class SourcingServiceClient(HttpClient httpClient, ILogger<SourcingServic
     // Nearby-store lookups are a non-critical enhancement (see Query.ConfirmedStoreOfferAsync /
     // Query.NearbyStoresGeneralAsync) -- any failure here (unreachable, timed out via the scoped
     // timeout configured on this HttpClient in Program.cs, or a non-2xx response) degrades to an
-    // empty result instead of throwing. Mirrors SubstitutionServiceClient's fallback.
+    // empty result instead of throwing.
     public async Task<NearbySourcingDto> GetConfirmedNearbyAsync(
         string ingredientName, double lat, double lng, CancellationToken cancellationToken = default)
     {

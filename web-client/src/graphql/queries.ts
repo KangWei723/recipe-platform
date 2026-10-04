@@ -38,12 +38,6 @@ export const RECIPE_QUERY = gql`
         unit
         optional
         inPantry
-        substitutions {
-          substituteName
-          ratio
-          confidence
-          contexts
-        }
       }
     }
   }
