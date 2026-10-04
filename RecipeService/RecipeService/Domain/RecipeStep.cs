@@ -7,6 +7,7 @@ public class RecipeStep
     public int StepNumber { get; set; }
     public string Instruction { get; set; } = null!;
     public int? TimerSeconds { get; set; }
+    public string? ImageUrl { get; set; }
 
     public Recipe? Recipe { get; set; }
 }

@@ -10,6 +10,8 @@ public class Recipe
     public int? PrepTimeMin { get; set; }
     public int? CookTimeMin { get; set; }
     public string? ImageUrl { get; set; }
+    public List<string> Tips { get; set; } = new();
+    public string? Pairing { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 
     public User? Author { get; set; }

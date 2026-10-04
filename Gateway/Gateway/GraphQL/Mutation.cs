@@ -53,6 +53,9 @@ public class Mutation
         int? cookTimeMin,
         List<CreateRecipeStepInput> steps,
         List<CreateRecipeIngredientInput> ingredients,
+        string? imageUrl,
+        List<string>? tips,
+        string? pairing,
         [Service] IRecipeServiceClient recipeClient,
         CancellationToken cancellationToken)
     {
@@ -63,13 +66,15 @@ public class Mutation
                 servings,
                 prepTimeMin,
                 cookTimeMin,
-                ImageUrl: null,
+                imageUrl,
                 steps
-                    .Select(s => new CreateRecipeStepDto(s.StepNumber, s.Instruction, s.TimerSeconds))
+                    .Select(s => new CreateRecipeStepDto(s.StepNumber, s.Instruction, s.TimerSeconds, s.ImageUrl))
                     .ToList(),
                 ingredients
                     .Select(i => new CreateRecipeIngredientDto(i.IngredientId, i.Quantity, i.Unit, i.Optional))
-                    .ToList()),
+                    .ToList(),
+                tips,
+                pairing),
             cancellationToken);
 
         return ToRecipeSummary(dto);
@@ -85,6 +90,9 @@ public class Mutation
         int? cookTimeMin,
         List<CreateRecipeStepInput> steps,
         List<CreateRecipeIngredientInput> ingredients,
+        string? imageUrl,
+        List<string>? tips,
+        string? pairing,
         [Service] IRecipeServiceClient recipeClient,
         CancellationToken cancellationToken)
     {
@@ -96,13 +104,15 @@ public class Mutation
                 servings,
                 prepTimeMin,
                 cookTimeMin,
-                ImageUrl: null,
+                imageUrl,
                 steps
-                    .Select(s => new CreateRecipeStepDto(s.StepNumber, s.Instruction, s.TimerSeconds))
+                    .Select(s => new CreateRecipeStepDto(s.StepNumber, s.Instruction, s.TimerSeconds, s.ImageUrl))
                     .ToList(),
                 ingredients
                     .Select(i => new CreateRecipeIngredientDto(i.IngredientId, i.Quantity, i.Unit, i.Optional))
-                    .ToList()),
+                    .ToList(),
+                tips,
+                pairing),
             cancellationToken);
 
         return ToRecipeSummary(dto);

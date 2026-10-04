@@ -28,4 +28,10 @@ public interface IRecipeServiceClient
     Task<IngredientDto> UpdateIngredientAsync(long ingredientId, UpdateIngredientDto request, CancellationToken cancellationToken = default);
 
     Task DeleteIngredientAsync(long ingredientId, CancellationToken cancellationToken = default);
+
+    // Passthrough for the admin-only image upload: recipe-service owns the real validation
+    // (signature/size check) and the Cloudinary call, Gateway just relays the multipart body and
+    // returns the resulting URL -- see Program.cs's /api/images/upload route.
+    Task<string> UploadImageAsync(
+        Stream content, string fileName, string? contentType, CancellationToken cancellationToken = default);
 }

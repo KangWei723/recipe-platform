@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using RecipeService.Domain;
 using RecipeService.Dtos;
 using RecipeService.Exceptions;
@@ -8,7 +9,8 @@ namespace RecipeService.Services;
 public class RecipesService(
     IRecipeRepository recipeRepository,
     IUserRepository userRepository,
-    IIngredientRepository ingredientRepository) : IRecipesService
+    IIngredientRepository ingredientRepository,
+    IOptions<CloudinaryOptions> cloudinaryOptions) : IRecipesService
 {
     public async Task<RecipeDetailResponse> GetByIdAsync(long id)
     {
@@ -29,6 +31,7 @@ public class RecipesService(
             ?? throw new ValidationException($"Author {authorId} does not exist");
 
         await EnsureIngredientsExistAsync(request.Ingredients.Select(i => i.IngredientId));
+        EnsureValidRecipeContent(request.ImageUrl, request.Steps, request.Tips, request.Pairing);
 
         var recipe = new Recipe
         {
@@ -39,13 +42,16 @@ public class RecipesService(
             PrepTimeMin = request.PrepTimeMin,
             CookTimeMin = request.CookTimeMin,
             ImageUrl = request.ImageUrl,
+            Tips = request.Tips,
+            Pairing = request.Pairing,
             CreatedAt = DateTimeOffset.UtcNow,
             Steps = request.Steps
                 .Select(s => new RecipeStep
                 {
                     StepNumber = s.StepNumber,
                     Instruction = s.Instruction,
-                    TimerSeconds = s.TimerSeconds
+                    TimerSeconds = s.TimerSeconds,
+                    ImageUrl = s.ImageUrl
                 })
                 .ToList(),
             Ingredients = request.Ingredients
@@ -68,6 +74,7 @@ public class RecipesService(
     public async Task<RecipeDetailResponse> UpdateAsync(long id, UpdateRecipeRequest request)
     {
         await EnsureIngredientsExistAsync(request.Ingredients.Select(i => i.IngredientId));
+        EnsureValidRecipeContent(request.ImageUrl, request.Steps, request.Tips, request.Pairing);
 
         var updated = await recipeRepository.UpdateAsync(
             id,
@@ -82,7 +89,8 @@ public class RecipesService(
                 {
                     StepNumber = s.StepNumber,
                     Instruction = s.Instruction,
-                    TimerSeconds = s.TimerSeconds
+                    TimerSeconds = s.TimerSeconds,
+                    ImageUrl = s.ImageUrl
                 })
                 .ToList(),
             request.Ingredients
@@ -93,12 +101,34 @@ public class RecipesService(
                     Unit = i.Unit,
                     Optional = i.Optional
                 })
-                .ToList()
+                .ToList(),
+            request.Tips,
+            request.Pairing
         ) ?? throw new NotFoundException($"Recipe {id} not found");
 
         var withNames = await recipeRepository.GetByIdAsync(updated.Id)
             ?? throw new NotFoundException($"Recipe {updated.Id} not found after update");
         return ToDetailResponse(withNames);
+    }
+
+    // Shared by CreateAsync/UpdateAsync: validates the hero image URL, every step's image URL,
+    // and the tips/pairing size limits before anything touches the repository -- same fail-fast
+    // positioning as EnsureIngredientsExistAsync above.
+    private void EnsureValidRecipeContent(
+        string? imageUrl, List<CreateRecipeStepRequest> steps, List<string> tips, string? pairing)
+    {
+        // Off by default -- see CloudinaryOptions.RestrictImageUrlsToOwnCloud.
+        var requiredCloudName = cloudinaryOptions.Value.RestrictImageUrlsToOwnCloud
+            ? cloudinaryOptions.Value.CloudName
+            : null;
+
+        ImageUrlValidator.EnsureValid(imageUrl, requiredCloudName);
+        foreach (var step in steps)
+        {
+            ImageUrlValidator.EnsureValid(step.ImageUrl, requiredCloudName);
+        }
+        RecipeContentLimits.EnsureValidTips(tips);
+        RecipeContentLimits.EnsureValidPairing(pairing);
     }
 
     public async Task DeleteAsync(long id)
@@ -187,11 +217,13 @@ public class RecipesService(
             recipe.CreatedAt,
             recipe.Steps
                 .OrderBy(s => s.StepNumber)
-                .Select(s => new RecipeStepResponse(s.Id, s.StepNumber, s.Instruction, s.TimerSeconds))
+                .Select(s => new RecipeStepResponse(s.Id, s.StepNumber, s.Instruction, s.TimerSeconds, s.ImageUrl))
                 .ToList(),
             recipe.Ingredients
                 .Select(i => new RecipeIngredientResponse(
                     i.Id, i.IngredientId, i.Ingredient!.Name, i.Quantity, i.Unit, i.Optional))
-                .ToList()
+                .ToList(),
+            recipe.Tips,
+            recipe.Pairing
         );
 }

@@ -5,6 +5,7 @@ public class CreateRecipeStepInput
     public required int StepNumber { get; init; }
     public required string Instruction { get; init; }
     public int? TimerSeconds { get; init; }
+    public string? ImageUrl { get; init; }
 }
 
 public class CreateRecipeIngredientInput

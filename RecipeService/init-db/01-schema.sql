@@ -25,7 +25,9 @@ CREATE TABLE recipes (
     servings INTEGER,
     prep_time_min INTEGER,
     cook_time_min INTEGER,
-    image_url VARCHAR(500),
+    image_url VARCHAR(2048),
+    tips TEXT[] NOT NULL DEFAULT ARRAY[]::text[],
+    pairing TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -37,6 +39,7 @@ CREATE TABLE recipe_steps (
     step_number INTEGER NOT NULL,
     instruction TEXT NOT NULL,
     timer_seconds INTEGER,
+    image_url VARCHAR(2048),
     UNIQUE (recipe_id, step_number)
 );
 

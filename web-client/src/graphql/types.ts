@@ -23,6 +23,7 @@ export interface RecipeStep {
   stepNumber: number;
   instruction: string;
   timerSeconds: number | null;
+  imageUrl: string | null;
 }
 
 export interface RecipeDetail {
@@ -33,6 +34,8 @@ export interface RecipeDetail {
   prepTimeMin: number | null;
   cookTimeMin: number | null;
   imageUrl: string | null;
+  tips: string[];
+  pairing: string | null;
   steps: RecipeStep[];
   ingredients: RecipeIngredient[];
 }
@@ -78,6 +81,7 @@ export interface CreateRecipeStepInput {
   stepNumber: number;
   instruction: string;
   timerSeconds: number | null;
+  imageUrl: string | null;
 }
 
 export interface CreateRecipeIngredientInput {

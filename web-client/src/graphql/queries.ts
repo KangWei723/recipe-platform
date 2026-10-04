@@ -24,11 +24,14 @@ export const RECIPE_QUERY = gql`
       prepTimeMin
       cookTimeMin
       imageUrl
+      tips
+      pairing
       steps {
         id
         stepNumber
         instruction
         timerSeconds
+        imageUrl
       }
       ingredients {
         id
@@ -131,6 +134,9 @@ export const CREATE_RECIPE_MUTATION = gql`
     $cookTimeMin: Int
     $steps: [CreateRecipeStepInput!]!
     $ingredients: [CreateRecipeIngredientInput!]!
+    $imageUrl: String
+    $tips: [String!]
+    $pairing: String
   ) {
     createRecipe(
       title: $title
@@ -140,6 +146,9 @@ export const CREATE_RECIPE_MUTATION = gql`
       cookTimeMin: $cookTimeMin
       steps: $steps
       ingredients: $ingredients
+      imageUrl: $imageUrl
+      tips: $tips
+      pairing: $pairing
     ) {
       id
       title
@@ -157,6 +166,9 @@ export const UPDATE_RECIPE_MUTATION = gql`
     $cookTimeMin: Int
     $steps: [CreateRecipeStepInput!]!
     $ingredients: [CreateRecipeIngredientInput!]!
+    $imageUrl: String
+    $tips: [String!]
+    $pairing: String
   ) {
     updateRecipe(
       recipeId: $recipeId
@@ -167,6 +179,9 @@ export const UPDATE_RECIPE_MUTATION = gql`
       cookTimeMin: $cookTimeMin
       steps: $steps
       ingredients: $ingredients
+      imageUrl: $imageUrl
+      tips: $tips
+      pairing: $pairing
     ) {
       id
       title

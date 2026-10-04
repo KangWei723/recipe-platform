@@ -16,6 +16,8 @@ public interface IRecipeRepository
         int? cookTimeMin,
         string? imageUrl,
         List<RecipeStep> steps,
-        List<RecipeIngredient> ingredients);
+        List<RecipeIngredient> ingredients,
+        List<string> tips,
+        string? pairing);
     Task<bool> DeleteAsync(long id);
 }

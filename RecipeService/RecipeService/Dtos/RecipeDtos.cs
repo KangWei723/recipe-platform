@@ -5,7 +5,8 @@ namespace RecipeService.Dtos;
 public record CreateRecipeStepRequest(
     [Required, Range(1, int.MaxValue)] int StepNumber,
     [Required] string Instruction,
-    int? TimerSeconds
+    int? TimerSeconds,
+    string? ImageUrl = null
 );
 
 public record CreateRecipeIngredientRequest(
@@ -23,14 +24,17 @@ public record CreateRecipeRequest(
     int? CookTimeMin,
     string? ImageUrl,
     List<CreateRecipeStepRequest> Steps,
-    List<CreateRecipeIngredientRequest> Ingredients
+    List<CreateRecipeIngredientRequest> Ingredients,
+    List<string>? Tips = null,
+    string? Pairing = null
 )
 {
-    // If the client omits "steps"/"ingredients" entirely, System.Text.Json's
+    // If the client omits "steps"/"ingredients"/"tips" entirely, System.Text.Json's
     // constructor-based deserialization falls back to these defaults instead
     // of binding null — keeps CreateAsync's LINQ over these lists NRE-free.
     public List<CreateRecipeStepRequest> Steps { get; init; } = Steps ?? [];
     public List<CreateRecipeIngredientRequest> Ingredients { get; init; } = Ingredients ?? [];
+    public List<string> Tips { get; init; } = Tips ?? [];
 }
 
 public record UpdateRecipeRequest(
@@ -41,20 +45,24 @@ public record UpdateRecipeRequest(
     int? CookTimeMin,
     string? ImageUrl,
     List<CreateRecipeStepRequest> Steps,
-    List<CreateRecipeIngredientRequest> Ingredients
+    List<CreateRecipeIngredientRequest> Ingredients,
+    List<string>? Tips = null,
+    string? Pairing = null
 )
 {
     // Same rationale as CreateRecipeRequest: keep LINQ over these lists NRE-free
-    // even if the client omits "steps"/"ingredients" entirely.
+    // even if the client omits "steps"/"ingredients"/"tips" entirely.
     public List<CreateRecipeStepRequest> Steps { get; init; } = Steps ?? [];
     public List<CreateRecipeIngredientRequest> Ingredients { get; init; } = Ingredients ?? [];
+    public List<string> Tips { get; init; } = Tips ?? [];
 }
 
 public record RecipeStepResponse(
     long Id,
     int StepNumber,
     string Instruction,
-    int? TimerSeconds
+    int? TimerSeconds,
+    string? ImageUrl = null
 );
 
 public record RecipeIngredientResponse(
@@ -89,7 +97,9 @@ public record RecipeDetailResponse(
     string? ImageUrl,
     DateTimeOffset CreatedAt,
     List<RecipeStepResponse> Steps,
-    List<RecipeIngredientResponse> Ingredients
+    List<RecipeIngredientResponse> Ingredients,
+    List<string>? Tips = null,
+    string? Pairing = null
 );
 
 public record RecipeMatchRequest(List<long> IngredientIds)

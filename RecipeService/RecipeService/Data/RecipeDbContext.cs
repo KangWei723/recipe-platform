@@ -44,6 +44,16 @@ public class RecipeDbContext(DbContextOptions<RecipeDbContext> options) : DbCont
             entity.Property(e => e.PrepTimeMin).HasColumnName("prep_time_min");
             entity.Property(e => e.CookTimeMin).HasColumnName("cook_time_min");
             entity.Property(e => e.ImageUrl).HasColumnName("image_url");
+            // Required + a DB-level default, not just the C# `= new()` default on the domain
+            // property -- a row inserted by anything other than this EF model (a raw SQL
+            // statement, a future migration) must still get a non-null array, or reading it back
+            // throws trying to materialize a NULL into the non-nullable List<string> Tips.
+            entity.Property(e => e.Tips)
+                .HasColumnName("tips")
+                .HasColumnType("text[]")
+                .IsRequired()
+                .HasDefaultValueSql("ARRAY[]::text[]");
+            entity.Property(e => e.Pairing).HasColumnName("pairing");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
 
             entity.HasOne(e => e.Author)
@@ -69,6 +79,7 @@ public class RecipeDbContext(DbContextOptions<RecipeDbContext> options) : DbCont
             entity.Property(e => e.StepNumber).HasColumnName("step_number");
             entity.Property(e => e.Instruction).HasColumnName("instruction");
             entity.Property(e => e.TimerSeconds).HasColumnName("timer_seconds");
+            entity.Property(e => e.ImageUrl).HasColumnName("image_url");
             entity.HasIndex(e => new { e.RecipeId, e.StepNumber }).IsUnique();
         });
 

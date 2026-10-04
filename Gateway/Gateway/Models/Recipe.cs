@@ -10,6 +10,8 @@ public class Recipe
     public int? PrepTimeMin { get; init; }
     public int? CookTimeMin { get; init; }
     public string? ImageUrl { get; init; }
+    public IReadOnlyList<string> Tips { get; init; } = [];
+    public string? Pairing { get; init; }
     public required DateTimeOffset CreatedAt { get; init; }
     public required IReadOnlyList<RecipeStep> Steps { get; init; }
     public required IReadOnlyList<RecipeIngredient> Ingredients { get; init; }
@@ -21,6 +23,7 @@ public class RecipeStep
     public required int StepNumber { get; init; }
     public required string Instruction { get; init; }
     public int? TimerSeconds { get; init; }
+    public string? ImageUrl { get; init; }
 }
 
 public class RecipeIngredient

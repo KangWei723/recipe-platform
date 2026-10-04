@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useClient, useMutation, useQuery } from 'urql';
 import { useIsAdmin } from '../auth/useIsAdmin';
@@ -66,6 +66,28 @@ function mergeKrogerOffers(
   }
 
   return next;
+}
+
+interface RecipeImageProps {
+  src: string | null;
+  alt: string;
+  className: string;
+  fallback: ReactNode;
+}
+
+// Shared by the hero image and every step card: renders `fallback` instead of the <img> when
+// there's no URL at all, and swaps to `fallback` on a failed load too (via onError) -- so a
+// missing or broken image degrades to the fallback instead of an empty box or a broken-image icon.
+function RecipeImage({ src, alt, className, fallback }: RecipeImageProps) {
+  const [broken, setBroken] = useState(false);
+
+  useEffect(() => {
+    setBroken(false);
+  }, [src]);
+
+  if (!src || broken) return <>{fallback}</>;
+
+  return <img src={src} alt={alt} className={className} loading="lazy" onError={() => setBroken(true)} />;
 }
 
 export function RecipeDetailPage() {
@@ -136,78 +158,123 @@ export function RecipeDetailPage() {
     <div>
       <div className="content-panel recipe-detail-panel">
         <div className="recipe-detail-main">
-          <h1>{recipe.title}</h1>
-          {isAdmin && (
-            <div className="field-row">
-              <Link
-                to={`/recipes/${recipe.id}/edit`}
-                className={buttonVariants({ variant: 'outline', size: 'sm' })}
-              >
-                Edit
-              </Link>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button type="button" variant="destructive" size="sm" disabled={deleting}>
-                    {deleting ? 'Deleting...' : 'Delete'}
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete "{recipe.title}"?</AlertDialogTitle>
-                    <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          )}
-          {deleteError && <p className="error-message">{deleteError}</p>}
-          {recipe.description && <p>{recipe.description}</p>}
-          <div className="recipe-meta">
-            {recipe.prepTimeMin != null && <span>PREP {recipe.prepTimeMin}m</span>}
-            {recipe.cookTimeMin != null && <span>COOK {recipe.cookTimeMin}m</span>}
-            {recipe.servings != null && (
-              <span className="servings-adjuster">
-                SERVES
-                <button
-                  type="button"
-                  aria-label="Decrease servings"
-                  disabled={(scaledServings ?? recipe.servings) <= 1}
-                  onClick={() => setScaledServings((s) => Math.max(1, (s ?? recipe.servings!) - 1))}
-                >
-                  &minus;
-                </button>
-                <span className="servings-value">{scaledServings ?? recipe.servings}</span>
-                <button
-                  type="button"
-                  aria-label="Increase servings"
-                  onClick={() => setScaledServings((s) => (s ?? recipe.servings!) + 1)}
-                >
-                  +
-                </button>
-                {scaledServings !== recipe.servings && (
-                  <button type="button" className="servings-reset" onClick={() => setScaledServings(recipe.servings)}>
-                    Reset
-                  </button>
+          <div className="recipe-hero">
+            <RecipeImage
+              src={recipe.imageUrl}
+              alt={recipe.title}
+              className="recipe-hero-image"
+              fallback={<div className="recipe-hero-image recipe-thumb" aria-hidden="true" />}
+            />
+            <div className="recipe-hero-content">
+              <h1>{recipe.title}</h1>
+              {isAdmin && (
+                <div className="field-row">
+                  <Link
+                    to={`/recipes/${recipe.id}/edit`}
+                    className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                  >
+                    Edit
+                  </Link>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button type="button" variant="destructive" size="sm" disabled={deleting}>
+                        {deleting ? 'Deleting...' : 'Delete'}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete "{recipe.title}"?</AlertDialogTitle>
+                        <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              )}
+              {deleteError && <p className="error-message">{deleteError}</p>}
+              {recipe.description && <p>{recipe.description}</p>}
+              <div className="recipe-meta">
+                {recipe.prepTimeMin != null && <span>PREP {recipe.prepTimeMin}m</span>}
+                {recipe.cookTimeMin != null && <span>COOK {recipe.cookTimeMin}m</span>}
+                {recipe.servings != null && (
+                  <span className="servings-adjuster">
+                    SERVES
+                    <button
+                      type="button"
+                      aria-label="Decrease servings"
+                      disabled={(scaledServings ?? recipe.servings) <= 1}
+                      onClick={() => setScaledServings((s) => Math.max(1, (s ?? recipe.servings!) - 1))}
+                    >
+                      &minus;
+                    </button>
+                    <span className="servings-value">{scaledServings ?? recipe.servings}</span>
+                    <button
+                      type="button"
+                      aria-label="Increase servings"
+                      onClick={() => setScaledServings((s) => (s ?? recipe.servings!) + 1)}
+                    >
+                      +
+                    </button>
+                    {scaledServings !== recipe.servings && (
+                      <button
+                        type="button"
+                        className="servings-reset"
+                        onClick={() => setScaledServings(recipe.servings)}
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </span>
                 )}
-              </span>
-            )}
+              </div>
+            </div>
           </div>
 
           <div className="section-divider" />
 
           <h2>Steps</h2>
-          <ol className="steps-list">
-            {sortedSteps.map((step) => (
-              <li key={step.id}>
-                {step.instruction}
-                {step.timerSeconds && ` (${Math.round(step.timerSeconds / 60)} min)`}
-              </li>
+          <div className="step-card-grid">
+            {sortedSteps.map((step, index) => (
+              <div key={step.id} className="step-card">
+                <RecipeImage
+                  src={step.imageUrl}
+                  alt={`Step ${index + 1}`}
+                  className="step-card-image"
+                  fallback={null}
+                />
+                <div className="step-card-body">
+                  <span className="step-number" aria-hidden="true">
+                    Step {index + 1}
+                  </span>
+                  <p className="step-card-instruction">{step.instruction}</p>
+                  {step.timerSeconds && (
+                    <span className="stat-line">{Math.round(step.timerSeconds / 60)} MIN</span>
+                  )}
+                </div>
+              </div>
             ))}
-          </ol>
+          </div>
+
+          {recipe.tips.length > 0 && (
+            <div className="panel tips-block">
+              <p className="panel-label">Tips</p>
+              <ul className="tips-list">
+                {recipe.tips.map((tip, index) => (
+                  <li key={index}>{tip}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {recipe.pairing && (
+            <div className="panel pairing-block">
+              <p className="panel-label">Pairing</p>
+              <p>{recipe.pairing}</p>
+            </div>
+          )}
         </div>
 
         <div className="recipe-detail-ingredients">

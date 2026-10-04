@@ -9,7 +9,8 @@ public record RecipeStepDto(
     long Id,
     int StepNumber,
     string Instruction,
-    int? TimerSeconds
+    int? TimerSeconds,
+    string? ImageUrl = null
 );
 
 public record RecipeIngredientDto(
@@ -32,7 +33,9 @@ public record RecipeDetailDto(
     string? ImageUrl,
     DateTimeOffset CreatedAt,
     List<RecipeStepDto> Steps,
-    List<RecipeIngredientDto> Ingredients
+    List<RecipeIngredientDto> Ingredients,
+    List<string>? Tips = null,
+    string? Pairing = null
 );
 
 public record RecipeSummaryDto(
@@ -58,7 +61,8 @@ public record IngredientDto(
 public record CreateRecipeStepDto(
     int StepNumber,
     string Instruction,
-    int? TimerSeconds
+    int? TimerSeconds,
+    string? ImageUrl = null
 );
 
 public record CreateRecipeIngredientDto(
@@ -76,7 +80,9 @@ public record CreateRecipeDto(
     int? CookTimeMin,
     string? ImageUrl,
     List<CreateRecipeStepDto> Steps,
-    List<CreateRecipeIngredientDto> Ingredients
+    List<CreateRecipeIngredientDto> Ingredients,
+    List<string>? Tips = null,
+    string? Pairing = null
 );
 
 public record UpdateRecipeDto(
@@ -87,7 +93,9 @@ public record UpdateRecipeDto(
     int? CookTimeMin,
     string? ImageUrl,
     List<CreateRecipeStepDto> Steps,
-    List<CreateRecipeIngredientDto> Ingredients
+    List<CreateRecipeIngredientDto> Ingredients,
+    List<string>? Tips = null,
+    string? Pairing = null
 );
 
 public record CreateIngredientDto(
@@ -120,6 +128,10 @@ public record RecipeMatchRequestDto(
 public record MissingMatchIngredientDto(
     long IngredientId,
     string IngredientName
+);
+
+public record ImageUploadResponseDto(
+    string Url
 );
 
 public record RecipeMatchDto(

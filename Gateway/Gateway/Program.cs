@@ -1,5 +1,6 @@
 using Auth;
 using Gateway.Client;
+using Gateway.Exceptions;
 using Gateway.GraphQL;
 using HotChocolate.Authorization;
 using Observability;
@@ -91,6 +92,35 @@ app.UseAuthorization();
 
 app.MapHealthChecks("/actuator/health").AllowAnonymous();
 app.MapGraphQL("/graphql");
+
+// Plain REST, not a GraphQL mutation -- GraphQL's multipart-upload story (a new Upload scalar,
+// a client-side exchange urql doesn't ship by default) would still end up forwarding to
+// recipe-service's own REST endpoint underneath, for no benefit over just exposing that forward
+// directly here. recipe-service owns the real validation and the Cloudinary call; this is a pure
+// passthrough. RequireAuthorization here is the same UX-shortcut-not-the-real-boundary pattern as
+// every admin-only GraphQL mutation above -- recipe-service enforces AdminOnly again regardless.
+app.MapPost("/api/images/upload", async (IFormFile file, IRecipeServiceClient recipeClient, CancellationToken ct) =>
+{
+    try
+    {
+        await using var stream = file.OpenReadStream();
+        var url = await recipeClient.UploadImageAsync(stream, file.FileName, file.ContentType, ct);
+        return Results.Ok(new { url });
+    }
+    catch (UpstreamServiceException ex)
+    {
+        return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status400BadRequest);
+    }
+})
+.RequireAuthorization(AuthorizationPolicies.AdminOnly)
+// .NET 8 attaches antiforgery metadata to any endpoint that binds IFormFile/form data,
+// regardless of whether AddAntiforgery() is registered -- confirmed empirically: without this,
+// the endpoint 500s with "contains anti-forgery metadata, but a middleware was not found",
+// since Gateway has no app.UseAntiforgery() in its pipeline at all. That protection guards
+// against cookie-based session riding; this endpoint is bearer-token-authenticated (the same
+// forwarded Authorization header every other Gateway call uses), so there's no cookie session
+// for a forged request to ride, and disabling it here doesn't remove any real protection.
+.DisableAntiforgery();
 
 app.Run();
 

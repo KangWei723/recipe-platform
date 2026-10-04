@@ -50,9 +50,11 @@ public class RecipesControllerTests
             Servings: 2,
             PrepTimeMin: 10,
             CookTimeMin: 15,
-            ImageUrl: null,
-            Steps: [new CreateRecipeStepRequest(1, "Boil water", 300)],
-            Ingredients: [new CreateRecipeIngredientRequest(5, 200, "g", false)]
+            ImageUrl: "https://cdn.example.com/pasta.jpg",
+            Steps: [new CreateRecipeStepRequest(1, "Boil water", 300, "https://cdn.example.com/boil.jpg")],
+            Ingredients: [new CreateRecipeIngredientRequest(5, 200, "g", false)],
+            Tips: ["Salt the water generously"],
+            Pairing: "Serve with a light white wine"
         );
 
         var detail = new RecipeDetailResponse(
@@ -65,8 +67,10 @@ public class RecipesControllerTests
             CookTimeMin: request.CookTimeMin,
             ImageUrl: request.ImageUrl,
             CreatedAt: DateTimeOffset.UtcNow,
-            Steps: [new RecipeStepResponse(1, 1, "Boil water", 300)],
-            Ingredients: [new RecipeIngredientResponse(1, 5, "Pasta", 200, "g", false)]
+            Steps: [new RecipeStepResponse(1, 1, "Boil water", 300, "https://cdn.example.com/boil.jpg")],
+            Ingredients: [new RecipeIngredientResponse(1, 5, "Pasta", 200, "g", false)],
+            Tips: request.Tips,
+            Pairing: request.Pairing
         );
 
         _usersService.Setup(s => s.ResolveCurrentUserAsync(It.IsAny<ClaimsPrincipal>()))
@@ -88,9 +92,11 @@ public class RecipesControllerTests
             Servings: 4,
             PrepTimeMin: 15,
             CookTimeMin: 20,
-            ImageUrl: null,
-            Steps: [new CreateRecipeStepRequest(1, "Boil water", 300)],
-            Ingredients: [new CreateRecipeIngredientRequest(5, 300, "g", false)]
+            ImageUrl: "https://cdn.example.com/pasta-v2.jpg",
+            Steps: [new CreateRecipeStepRequest(1, "Boil water", 300, "https://cdn.example.com/boil.jpg")],
+            Ingredients: [new CreateRecipeIngredientRequest(5, 300, "g", false)],
+            Tips: ["Add garlic early"],
+            Pairing: "Serve with garlic bread"
         );
 
         var detail = new RecipeDetailResponse(
@@ -103,8 +109,10 @@ public class RecipesControllerTests
             CookTimeMin: request.CookTimeMin,
             ImageUrl: request.ImageUrl,
             CreatedAt: DateTimeOffset.UtcNow,
-            Steps: [new RecipeStepResponse(1, 1, "Boil water", 300)],
-            Ingredients: [new RecipeIngredientResponse(1, 5, "Pasta", 300, "g", false)]
+            Steps: [new RecipeStepResponse(1, 1, "Boil water", 300, "https://cdn.example.com/boil.jpg")],
+            Ingredients: [new RecipeIngredientResponse(1, 5, "Pasta", 300, "g", false)],
+            Tips: request.Tips,
+            Pairing: request.Pairing
         );
 
         _service.Setup(s => s.UpdateAsync(10, request)).ReturnsAsync(detail);

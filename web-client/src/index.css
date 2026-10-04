@@ -285,6 +285,52 @@ a {
   margin-top: 0;
 }
 
+/* Hero image beside the title block, both still sitting to the left of the
+   .recipe-detail-ingredients side panel via the existing grid above. */
+.recipe-hero {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.recipe-hero-image {
+  flex: 0 0 220px;
+  width: 220px;
+  height: 160px;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+/* Falls back to it when there's no hero imageUrl at all or it fails to load -- the same
+   hatch-pattern placeholder RecipeListPage.tsx's cards already use via .recipe-thumb, reused
+   rather than duplicated. */
+.recipe-hero-image.recipe-thumb {
+  margin: 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.recipe-hero-content {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.recipe-hero-content h1 {
+  margin-bottom: 0.3em;
+}
+
+@media (max-width: 900px) {
+  .recipe-hero {
+    flex-direction: column;
+  }
+
+  .recipe-hero-image {
+    width: 100%;
+    flex-basis: auto;
+  }
+}
+
 .recipe-detail-ingredients {
   border-left: 1px solid var(--color-divider);
   background: var(--color-panel);
@@ -640,23 +686,83 @@ a {
 
 /* ---------- Steps ---------- */
 
-.steps-list {
-  padding-left: 22px;
-  /* Tailwind's preflight resets ol/ul to list-style: none (see the @layer base comment up top),
-     which also removes the ::marker below rendering at all -- this list previously relied on
-     the browser's native <ol> numbering, silently lost when Tailwind was introduced. */
-  list-style: decimal;
+/* 4 columns on wide desktop, stepping down through the same 900/700/600px breakpoints used
+   elsewhere in this file (.recipe-detail-panel, .ingredient-table-row, .card-grid) rather than
+   inventing new ones. */
+.step-card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
 }
 
-.steps-list li {
-  padding: 4px 0 4px 8px;
-  margin-bottom: 6px;
+@media (max-width: 900px) {
+  .step-card-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
-.steps-list li::marker {
-  font-family: var(--font-display);
-  color: var(--color-primary);
-  font-weight: 600;
+@media (max-width: 700px) {
+  .step-card-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .step-card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.step-card {
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+/* No fallback box here (unlike .recipe-hero-image / .recipe-thumb) -- a step with no image or a
+   failed load renders as a plain text card, not an empty placeholder. */
+.step-card-image {
+  display: block;
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.step-card-body {
+  padding: 12px 14px 14px;
+}
+
+.step-card-body .step-number {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.step-card-instruction {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+
+/* ---------- Tips / Pairing ---------- */
+
+.tips-block,
+.pairing-block {
+  margin-top: 20px;
+}
+
+.tips-list {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  list-style: disc;
+}
+
+.tips-list li {
+  padding: 2px 0;
+}
+
+.pairing-block p:last-child {
+  margin: 8px 0 0;
 }
 
 /* ---------- Forms ---------- */
@@ -826,6 +932,88 @@ label {
 
 .step-instruction {
   flex: 1 1 260px;
+}
+
+.tip-row-input {
+  flex: 1 1 260px;
+}
+
+/* ---------- Image URL field + live preview ---------- */
+
+.image-url-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.image-url-field-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.image-upload-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.image-upload-filename {
+  font-size: 0.85rem;
+  color: var(--color-muted-text);
+}
+
+.image-upload-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.image-url-preview {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+  overflow: hidden;
+}
+
+.image-url-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Dimmed while loading, full opacity once it resolves -- onError hides the broken image
+     entirely via the error-state class below instead of showing a broken-image icon. */
+  opacity: 0.4;
+}
+
+.image-url-preview[data-status='loaded'] .image-url-preview-img {
+  opacity: 1;
+}
+
+.image-url-preview[data-status='error'] .image-url-preview-img {
+  display: none;
+}
+
+.image-url-preview-error {
+  font-size: 0.65rem;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--color-alert);
+  padding: 0 4px;
+}
+
+/* Distinct from .image-url-preview-error above -- that one means "the URL doesn't resolve to an
+   image"; this one means "the upload itself failed" (rejected by validation, network error). */
+.image-upload-error {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--color-alert);
 }
 
 .form-actions {

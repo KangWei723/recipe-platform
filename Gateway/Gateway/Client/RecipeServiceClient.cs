@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Gateway.Exceptions;
@@ -104,6 +105,41 @@ public class RecipeServiceClient(HttpClient httpClient) : IRecipeServiceClient
         var requestUri = $"/api/ingredients/{ingredientId}";
         var response = await SendAsync(HttpMethod.Delete, requestUri, cancellationToken: cancellationToken);
         await ThrowIfErrorAsync(response, requestUri, cancellationToken);
+    }
+
+    // Separate from SendAsync above -- that helper always JSON-encodes its body, which doesn't
+    // fit a multipart file upload, so this builds the request directly. Response handling still
+    // goes through the same ReadOrThrowAsync/ThrowIfErrorAsync helpers as every other call.
+    public async Task<string> UploadImageAsync(
+        Stream content, string fileName, string? contentType, CancellationToken cancellationToken = default)
+    {
+        const string requestUri = "/api/images";
+
+        using var form = new MultipartFormDataContent();
+        var streamContent = new StreamContent(content);
+        if (!string.IsNullOrEmpty(contentType))
+        {
+            streamContent.Headers.ContentType = MediaTypeHeaderValue.Parse(contentType);
+        }
+        form.Add(streamContent, "file", fileName);
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await httpClient.PostAsync(requestUri, form, cancellationToken);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+
+            throw new UpstreamServiceException($"Call to recipe-service failed: {requestUri}", ex);
+        }
+
+        var result = await ReadOrThrowAsync<ImageUploadResponseDto>(response, requestUri, cancellationToken);
+        return result.Url;
     }
 
     private async Task<HttpResponseMessage> SendAsync(

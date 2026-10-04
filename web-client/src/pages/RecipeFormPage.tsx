@@ -31,6 +31,7 @@ import {
 } from '../components/ui/alert-dialog';
 import { Button } from '../components/ui/button';
 import { Checkbox } from '../components/ui/checkbox';
+import { ImageUrlPreview } from '../components/ImageUrlPreview';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -59,6 +60,12 @@ interface StepRow {
   key: number;
   instruction: string;
   timerSeconds: string;
+  imageUrl: string;
+  // Lives here, not in ImageUrlPreview's own state -- it has to move with the row through
+  // drag-reorder (arrayMove) and deletion (filter) the same way imageUrl does. UI-only (never
+  // sent to the server, never part of serializeSnapshot/isDirty), so there's nothing to persist
+  // for an already-saved step -- it's always null until this session uploads a new image for it.
+  imageFileName: string | null;
 }
 
 interface RecipeFormVariables {
@@ -68,7 +75,10 @@ interface RecipeFormVariables {
   prepTimeMin: number | null;
   cookTimeMin: number | null;
   ingredients: { ingredientId: number; quantity: number; unit: string; optional: boolean }[];
-  steps: { stepNumber: number; instruction: string; timerSeconds: number | null }[];
+  steps: { stepNumber: number; instruction: string; timerSeconds: number | null; imageUrl: string | null }[];
+  imageUrl: string | null;
+  tips: string[];
+  pairing: string | null;
 }
 
 let nextRowKey = 0;
@@ -78,7 +88,16 @@ function emptyIngredientRow(): IngredientRow {
 }
 
 function emptyStepRow(): StepRow {
-  return { key: nextRowKey++, instruction: '', timerSeconds: '' };
+  return { key: nextRowKey++, instruction: '', timerSeconds: '', imageUrl: '', imageFileName: null };
+}
+
+function emptyTipRow(): TipRow {
+  return { key: nextRowKey++, text: '' };
+}
+
+interface TipRow {
+  key: number;
+  text: string;
 }
 
 interface FormSnapshotInput {
@@ -87,8 +106,11 @@ interface FormSnapshotInput {
   servings: string;
   prepTimeMin: string;
   cookTimeMin: string;
+  heroImageUrl: string;
+  pairing: string;
   ingredientRows: IngredientRow[];
   stepRows: StepRow[];
+  tipRows: TipRow[];
 }
 
 // Row `key` is an internal React identity, not user-visible content, so it's excluded here --
@@ -100,13 +122,16 @@ function serializeSnapshot(state: FormSnapshotInput): string {
     servings: state.servings,
     prepTimeMin: state.prepTimeMin,
     cookTimeMin: state.cookTimeMin,
+    heroImageUrl: state.heroImageUrl,
+    pairing: state.pairing,
     ingredients: state.ingredientRows.map(({ ingredientId, quantity, unit, optional }) => ({
       ingredientId,
       quantity,
       unit,
       optional,
     })),
-    steps: state.stepRows.map(({ instruction, timerSeconds }) => ({ instruction, timerSeconds })),
+    steps: state.stepRows.map(({ instruction, timerSeconds, imageUrl }) => ({ instruction, timerSeconds, imageUrl })),
+    tips: state.tipRows.map(({ text }) => text),
   });
 }
 
@@ -118,8 +143,11 @@ const EMPTY_FORM_SNAPSHOT = serializeSnapshot({
   servings: '',
   prepTimeMin: '',
   cookTimeMin: '',
+  heroImageUrl: '',
+  pairing: '',
   ingredientRows: [{ key: 0, ingredientId: '', quantity: '', unit: '', optional: false }],
-  stepRows: [{ key: 0, instruction: '', timerSeconds: '' }],
+  stepRows: [{ key: 0, instruction: '', timerSeconds: '', imageUrl: '', imageFileName: null }],
+  tipRows: [],
 });
 
 interface SortableStepRowProps {
@@ -175,6 +203,13 @@ function SortableStepRow({ row, index, onUpdate, onRemove, removeDisabled }: Sor
           onChange={(e) => onUpdate(row.key, { timerSeconds: e.target.value })}
         />
       </label>
+      <ImageUrlPreview
+        id={`step-${row.key}-image`}
+        label="Step image (optional)"
+        value={row.imageUrl}
+        fileName={row.imageFileName}
+        onChange={(value, fileName) => onUpdate(row.key, { imageUrl: value, imageFileName: fileName })}
+      />
       <Button type="button" variant="ghost" size="sm" onClick={() => onRemove(row.key)} disabled={removeDisabled}>
         Remove
       </Button>
@@ -214,8 +249,14 @@ export function RecipeFormPage() {
   const [servings, setServings] = useState('');
   const [prepTimeMin, setPrepTimeMin] = useState('');
   const [cookTimeMin, setCookTimeMin] = useState('');
+  const [heroImageUrl, setHeroImageUrl] = useState('');
+  // UI-only, same rationale as StepRow.imageFileName -- never sent to the server, never part of
+  // serializeSnapshot/isDirty, always null for an already-saved recipe's hero image.
+  const [heroImageFileName, setHeroImageFileName] = useState<string | null>(null);
+  const [pairing, setPairing] = useState('');
   const [ingredientRows, setIngredientRows] = useState<IngredientRow[]>([emptyIngredientRow()]);
   const [stepRows, setStepRows] = useState<StepRow[]>([emptyStepRow()]);
+  const [tipRows, setTipRows] = useState<TipRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [prefilled, setPrefilled] = useState(false);
@@ -238,6 +279,8 @@ export function RecipeFormPage() {
     const nextServings = recipe.servings != null ? String(recipe.servings) : '';
     const nextPrepTimeMin = recipe.prepTimeMin != null ? String(recipe.prepTimeMin) : '';
     const nextCookTimeMin = recipe.cookTimeMin != null ? String(recipe.cookTimeMin) : '';
+    const nextHeroImageUrl = recipe.imageUrl ?? '';
+    const nextPairing = recipe.pairing ?? '';
     const nextIngredientRows =
       recipe.ingredients.length > 0
         ? recipe.ingredients.map((i) => ({
@@ -256,16 +299,23 @@ export function RecipeFormPage() {
               key: nextRowKey++,
               instruction: s.instruction,
               timerSeconds: s.timerSeconds != null ? String(s.timerSeconds) : '',
+              imageUrl: s.imageUrl ?? '',
+              imageFileName: null, // never known for an already-saved step -- only the URL is persisted
             }))
         : [emptyStepRow()];
+    const nextTipRows = recipe.tips.map((text) => ({ key: nextRowKey++, text }));
 
     setTitle(nextTitle);
     setDescription(nextDescription);
     setServings(nextServings);
     setPrepTimeMin(nextPrepTimeMin);
     setCookTimeMin(nextCookTimeMin);
+    setHeroImageUrl(nextHeroImageUrl);
+    setHeroImageFileName(null);
+    setPairing(nextPairing);
     setIngredientRows(nextIngredientRows);
     setStepRows(nextStepRows);
+    setTipRows(nextTipRows);
     setPrefilled(true);
 
     baselineRef.current = serializeSnapshot({
@@ -274,8 +324,11 @@ export function RecipeFormPage() {
       servings: nextServings,
       prepTimeMin: nextPrepTimeMin,
       cookTimeMin: nextCookTimeMin,
+      heroImageUrl: nextHeroImageUrl,
+      pairing: nextPairing,
       ingredientRows: nextIngredientRows,
       stepRows: nextStepRows,
+      tipRows: nextTipRows,
     });
   }, [isEdit, prefilled, recipeData, unitsFetching, isFractionalFriendly]);
 
@@ -284,8 +337,18 @@ export function RecipeFormPage() {
     // so there's nothing the user could have changed.
     if (baselineRef.current === null) return false;
     return (
-      serializeSnapshot({ title, description, servings, prepTimeMin, cookTimeMin, ingredientRows, stepRows }) !==
-      baselineRef.current
+      serializeSnapshot({
+        title,
+        description,
+        servings,
+        prepTimeMin,
+        cookTimeMin,
+        heroImageUrl,
+        pairing,
+        ingredientRows,
+        stepRows,
+        tipRows,
+      }) !== baselineRef.current
     );
   }
 
@@ -337,6 +400,10 @@ export function RecipeFormPage() {
     setStepRows((rows) => rows.map((row) => (row.key === key ? { ...row, ...patch } : row)));
   }
 
+  function updateTipRow(key: number, text: string) {
+    setTipRows((rows) => rows.map((row) => (row.key === key ? { ...row, text } : row)));
+  }
+
   // Reorders by moving one row to another position rather than touching row content, so each
   // row keeps its own React key (and DOM node/focus) as it moves -- stepNumber itself is never
   // stored, only derived from array position at submit time (see handleSubmit's
@@ -381,6 +448,8 @@ export function RecipeFormPage() {
       servings: servings ? Number(servings) : null,
       prepTimeMin: prepTimeMin ? Number(prepTimeMin) : null,
       cookTimeMin: cookTimeMin ? Number(cookTimeMin) : null,
+      imageUrl: heroImageUrl.trim() || null,
+      pairing: pairing.trim() || null,
       ingredients: ingredientRows.map((r, index) => ({
         ingredientId: Number(r.ingredientId),
         quantity: parsedQuantities[index] as number,
@@ -391,7 +460,11 @@ export function RecipeFormPage() {
         stepNumber: index + 1,
         instruction: r.instruction.trim(),
         timerSeconds: r.timerSeconds ? Number(r.timerSeconds) : null,
+        imageUrl: r.imageUrl.trim() || null,
       })),
+      // Blank rows (added via "Add tip" then left empty) are dropped rather than rejected --
+      // same forgiving treatment as an unfilled optional field elsewhere in this form.
+      tips: tipRows.map((r) => r.text.trim()).filter((text) => text.length > 0),
     };
 
     setSubmitting(true);
@@ -487,6 +560,16 @@ export function RecipeFormPage() {
             onChange={(e) => setDescription(e.target.value)}
           />
         </div>
+        <ImageUrlPreview
+          id="recipe-hero-image"
+          label="Hero image (optional)"
+          value={heroImageUrl}
+          fileName={heroImageFileName}
+          onChange={(value, fileName) => {
+            setHeroImageUrl(value);
+            setHeroImageFileName(fileName);
+          }}
+        />
 
         <div className="form-columns">
         <div>
@@ -607,6 +690,42 @@ export function RecipeFormPage() {
           Add step
         </Button>
         </div>
+        </div>
+
+        <h2>Tips</h2>
+        {tipRows.map((row, index) => (
+          <div key={row.key} className="field-row tip-row">
+            <label className="tip-row-input">
+              <Label htmlFor={`tip-${row.key}`}>{`Tip ${index + 1}`}</Label>
+              <Input
+                id={`tip-${row.key}`}
+                aria-label="Tip"
+                value={row.text}
+                onChange={(e) => updateTipRow(row.key, e.target.value)}
+              />
+            </label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setTipRows((rows) => rows.filter((r) => r.key !== row.key))}
+            >
+              Remove
+            </Button>
+          </div>
+        ))}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setTipRows((rows) => [...rows, emptyTipRow()])}
+        >
+          Add tip
+        </Button>
+
+        <div className="form-field">
+          <Label htmlFor="recipe-pairing">Pairing (optional)</Label>
+          <Input id="recipe-pairing" value={pairing} onChange={(e) => setPairing(e.target.value)} />
         </div>
 
         {error && <p className="error-message">{error}</p>}

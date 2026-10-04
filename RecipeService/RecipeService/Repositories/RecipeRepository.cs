@@ -43,7 +43,9 @@ public class RecipeRepository(RecipeDbContext context) : IRecipeRepository
         int? cookTimeMin,
         string? imageUrl,
         List<RecipeStep> steps,
-        List<RecipeIngredient> ingredients)
+        List<RecipeIngredient> ingredients,
+        List<string> tips,
+        string? pairing)
     {
         var recipe = await context.Recipes
             .Include(r => r.Steps)
@@ -60,6 +62,8 @@ public class RecipeRepository(RecipeDbContext context) : IRecipeRepository
         recipe.PrepTimeMin = prepTimeMin;
         recipe.CookTimeMin = cookTimeMin;
         recipe.ImageUrl = imageUrl;
+        recipe.Tips = tips;
+        recipe.Pairing = pairing;
         recipe.Steps.Clear();
         recipe.Ingredients.Clear();
         await context.SaveChangesAsync();

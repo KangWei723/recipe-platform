@@ -46,6 +46,8 @@ public class Query
             PrepTimeMin = recipeDto.PrepTimeMin,
             CookTimeMin = recipeDto.CookTimeMin,
             ImageUrl = recipeDto.ImageUrl,
+            Tips = recipeDto.Tips ?? [],
+            Pairing = recipeDto.Pairing,
             CreatedAt = recipeDto.CreatedAt,
             Steps = recipeDto.Steps
                 .Select(s => new RecipeStep
@@ -53,7 +55,8 @@ public class Query
                     Id = s.Id,
                     StepNumber = s.StepNumber,
                     Instruction = s.Instruction,
-                    TimerSeconds = s.TimerSeconds
+                    TimerSeconds = s.TimerSeconds,
+                    ImageUrl = s.ImageUrl
                 })
                 .ToList(),
             Ingredients = recipeDto.Ingredients
