@@ -3,8 +3,8 @@
 ## Overview
 
 Larder is a pantry-aware recipe app: recipes, a per-user pantry, ranked "what can I cook right
-now" matching, ingredient substitutions, and real grocery pricing/store lookup for whatever
-you're missing. It started as a solo portfolio project meant to demonstrate distributed-systems
+now" matching, and real grocery pricing/store lookup for whatever you're missing. It started as
+a solo portfolio project meant to demonstrate distributed-systems
 engineering — service boundaries, partial-failure handling, concurrency, observability, and
 event-driven design — with the recipe/pantry domain as the vehicle rather than the point.
 
@@ -26,10 +26,10 @@ web-client (React + urql)
         ▼
     Gateway (GraphQL, HotChocolate)
         │  forwards the caller's bearer token to each service; doesn't validate it itself
-        ├──────────────┬──────────────────┬──────────────────┐
-        ▼              ▼                  ▼                  ▼
-  RecipeService   PantryService   SubstitutionService   SourcingService
-  (Postgres)      (Postgres)      (Neo4j)               (Kroger + Google Places, Redis-cached)
+        ├──────────────┬──────────────────┐
+        ▼              ▼                  ▼
+  RecipeService   PantryService    SourcingService
+  (Postgres)      (Postgres)       (Kroger + Google Places, Redis-cached)
 ```
 
 - **RecipeService** — recipes, steps, the shared ingredient catalog, and user identity. Owns
@@ -41,8 +41,6 @@ web-client (React + urql)
   RecipeService's API for ingredient/recipe data rather than joining across service databases,
   and publishes an `ingredient.missing` event when a recipe needs something the caller doesn't
   have.
-- **SubstitutionService** — ranked ingredient-substitution lookups backed by a Neo4j graph (see
-  [Substitution model](#substitution-model-relational-table--neo4j-graph) below).
 - **SourcingService** — "where can I buy this" lookups. Fires parallel calls to multiple store
   providers (Kroger for confirmed per-ingredient pricing, Google Places for general nearby
   stores), each raced against its own timeout so one slow provider never blocks the others,
@@ -57,17 +55,16 @@ behaves like one big database.
 
 - **QStash** (Upstash-hosted, dev-only — see [Production scope](#production-scope-what-ships-to-render)) —
   decouples detection from action. `ingredient.missing` is published by PantryService and
-  delivered via signed webhook to both SubstitutionService and SourcingService. Both handlers
-  currently just log the event; no downstream action (auto-searching stores, suggesting a
-  substitute) is wired up yet.
+  delivered via signed webhook to SourcingService. The handler currently just logs the event;
+  no downstream action (auto-searching stores) is wired up yet.
 - **Observability** (dev-only) — OpenTelemetry tracing across every service, Prometheus metrics,
   Grafana dashboards and alerting rules. QStash's async webhook deliveries pick up the
   publisher's `traceparent` header, so a consumer span nests under the original request's trace
   instead of starting a disconnected one.
 - **Auth0** — every backend service validates JWT bearer tokens itself (issuer = tenant domain,
   audience `https://recipemate.api`), with an authenticated-by-default fallback policy —
-  endpoints opt **out** with `[AllowAnonymous]` (health checks, the two QStash webhook
-  controllers, which keep their own HMAC check) rather than opting in, so a newly added endpoint
+  endpoints opt **out** with `[AllowAnonymous]` (health checks, the QStash webhook controller,
+  which keeps its own HMAC check) rather than opting in, so a newly added endpoint
   is locked down unless someone deliberately opens it. Recipe/ingredient writes additionally
   require an `admin` role, read from a custom claim (`https://recipemate.api/roles`) since Auth0
   puts role names there rather than in the claim ASP.NET Core's built-in `RequireRole()` expects
@@ -79,7 +76,7 @@ behaves like one big database.
 - **External** — GraphQL gateway (HotChocolate), the web-client's single entry point:
   - Queries: `recipe(id)`, `recipes`, `ingredients`, `units`, `ingredientCategories`,
     `pantryItems`, `recipeMatches(ingredientIds)`, `confirmedStoreOffer(ingredientName, lat, lng)`,
-    `nearbyStoresGeneral(lat, lng)`, plus a nested `RecipeIngredient.substitutions` resolver.
+    `nearbyStoresGeneral(lat, lng)`.
   - Mutations: `upsertPantryItem`, `removePantryItem`, and admin-only `createRecipe`,
     `updateRecipe`, `deleteRecipe`, `createIngredient`, `updateIngredient`, `deleteIngredient`.
   - None of the pantry or recipe-authoring operations take a caller/user id argument — identity
@@ -103,22 +100,8 @@ behaves like one big database.
 - `stores(id, place_id, name, address, lat, lng)` — SourcingService (cached from Google Places)
 - `ingredient_prices(id, ingredient_id FK, store_id FK, price, currency, observed_at)` — SourcingService
 
-### Substitution graph (Neo4j, owned by SubstitutionService)
-
-- Nodes: `Ingredient(name, category)`
-- Relationship: `SUBSTITUTES_FOR(ratio, contexts[], confidence)` — directional and weighted
-
-Example query — "what can I use instead of butter for baking, ranked by confidence":
-
-```cypher
-MATCH (b:Ingredient {name: "Butter"})-[s:SUBSTITUTES_FOR]->(alt:Ingredient)
-WHERE "baking" IN s.contexts
-RETURN alt.name, s.ratio, s.confidence
-ORDER BY s.confidence DESC
-```
-
-Why this shape, and how it replaced an earlier relational design, is covered in
-[Substitution model](#substitution-model-relational-table--neo4j-graph) below.
+The substitution graph that used to live here (Neo4j, owned by SubstitutionService) was removed;
+see [Considered / removed](#considered--removed) below.
 
 ## Key decisions
 
@@ -136,31 +119,13 @@ server gave deterministic local testing without standing up real infrastructure.
 signature-verification bugs were found and fixed by testing against real QStash deliveries
 rather than trusting the SDK's documented contract at face value.
 
-### Substitution model: relational table → Neo4j graph
-
-Substitution logic shipped first as a plain Postgres table
-(`ingredient_id, substitute_id, ratio, context`) — a deliberate "start simple, migrate when it's
-outgrown" sequence rather than reaching for a graph database on day one. It was then retired in
-favor of a Neo4j-backed graph once the model needed things a join table can't express cleanly:
-
-- **Directionality/asymmetry** — applesauce can replace butter in a muffin recipe; butter can't
-  replace applesauce in a smoothie. A symmetric join table can't represent this without
-  duplicating rows and tracking direction by convention.
-- **Context lives on the edge** — the same ingredient pair can have different ratios depending on
-  cooking method (frying vs. baking), which belongs naturally on a weighted, labeled relationship
-  rather than as extra table columns multiplying the row count.
-- **Transitive lookups are cheap** — "what else substitutes for something that substitutes for
-  X" is a 2-hop graph traversal, not a recursive CTE.
-
-The schema and an example query are in [Data model](#data-model) above.
-
 ### Authentication and authorization for real users
 
 Nothing in the platform validated a caller's identity before this. Once real users were in the
 picture, an audit of the existing code turned up several places where that mattered more than
 "someday":
 
-- **No authentication existed anywhere.** *Fixed:* all four backend services now validate Auth0
+- **No authentication existed anywhere.** *Fixed:* all three backend services now validate Auth0
   JWT bearer tokens via a shared `Auth` project, authenticated-by-default (see
   [System architecture](#system-architecture) above). Verified end-to-end with a real
   Auth0-issued token, not just config-level checks.
@@ -183,9 +148,9 @@ picture, an audit of the existing code turned up several places where that matte
   through this same endpoint rather than inventing its own identity source. A Post-Login Action
   was added in Auth0 to populate real `email`/`name` claims on the token, so JIT-provisioned
   users get real values instead of placeholders.
-- **The `ingredient.missing` event carries a `UserId` that nothing uses.** Both consumers are
-  still logging stubs (see [System architecture](#system-architecture) above), so there's no
-  per-user scoping to get wrong yet — but it will matter once they do real work.
+- **The `ingredient.missing` event carries a `UserId` that nothing uses.** The consumer is still
+  a logging stub (see [System architecture](#system-architecture) above), so there's no per-user
+  scoping to get wrong yet — but it will matter once it does real work.
 
 Two of the items above (pantry access and recipe authorship) were genuine authorization
 vulnerabilities in a live sense: an authenticated user could act as a different user, not just a
@@ -236,7 +201,6 @@ currently a plain string column with no upload pipeline behind it.
 Local dev and demo usage keep the full distributed architecture. Production, deployed on Render,
 is intentionally simplified:
 
-- Neo4j ships to production — the substitution graph is core product behavior, not simplified away.
 - QStash and the full observability stack (OpenTelemetry/Jaeger/Prometheus/Grafana) stay
   **dev-only** and do not run in production.
 
@@ -262,14 +226,65 @@ this section, which is kept as-written for the record.
   **Phase 3 — Polish.** Workflow orchestration for the sourcing flow, infra-as-code + CI/CD, a
   deliberate fault-injection exercise with a written postmortem, architecture documentation.
 
+## Considered / removed
+
+Decisions that shipped, were verified working, and were later taken back out entirely — kept
+here rather than deleted from history, same spirit as the rest of this doc.
+
+### Substitution graph (Neo4j) — removed
+
+Ranked ingredient-substitution lookups ("what can replace butter for baking") shipped as their
+own service, `SubstitutionService`, exposed through the Gateway as a nested
+`RecipeIngredient.substitutions` resolver and surfaced in the web-client as a "Try instead"
+suggestion next to any missing ingredient.
+
+The data layer went through a deliberate migration before removal. It shipped first as a plain
+Postgres table (`ingredient_id, substitute_id, ratio, context`) — "start simple, migrate when
+it's outgrown" rather than reaching for a graph database on day one — then was retired in favor
+of a Neo4j-backed graph once the model needed things a join table can't express cleanly:
+
+- **Directionality/asymmetry** — applesauce can replace butter in a muffin recipe; butter can't
+  replace applesauce in a smoothie. A symmetric join table can't represent this without
+  duplicating rows and tracking direction by convention.
+- **Context lives on the edge** — the same ingredient pair can have different ratios depending on
+  cooking method (frying vs. baking), which belongs naturally on a weighted, labeled relationship
+  rather than as extra table columns multiplying the row count.
+- **Transitive lookups are cheap** — "what else substitutes for something that substitutes for
+  X" is a 2-hop graph traversal, not a recursive CTE.
+
+The resulting schema:
+
+- Nodes: `Ingredient(name, category)`
+- Relationship: `SUBSTITUTES_FOR(ratio, contexts[], confidence)` — directional and weighted
+
+Example query — "what can I use instead of butter for baking, ranked by confidence":
+
+```cypher
+MATCH (b:Ingredient {name: "Butter"})-[s:SUBSTITUTES_FOR]->(alt:Ingredient)
+WHERE "baking" IN s.contexts
+RETURN alt.name, s.ratio, s.confidence
+ORDER BY s.confidence DESC
+```
+
+**Why it was removed, in October 2026:** no real substitution data was ever populated into the
+graph — it was architecturally real (built, deployed, verified end-to-end, Gateway's client
+degraded gracefully when it was unreachable) but functionally empty. The hosted Neo4j AuraDB
+instance was free-tier and expired from inactivity; rather than provision a replacement for a
+feature with no actual data behind it, the feature was removed outright: `SubstitutionService`,
+Gateway's client/resolver/DataLoader for it, and the web-client's "Try instead" UI. The
+`ingredient.missing` QStash event still exists and is still delivered to SourcingService
+unaffected — only the SubstitutionService side of that fan-out is gone.
+
+If ranked substitutions come back, this is still the right shape for the data — the reasoning
+above didn't change, only the fact that nothing was populating it.
+
 ## Current status
 
 **Working today:** recipe browsing/creation/editing (admin-gated), pantry tracking, ranked
-recipe matching against pantry contents, ranked ingredient substitutions, real Kroger pricing and
-Google Places store lookups run in parallel with timeout/fallback handling, servings scaling,
-Auth0 login with role-based write access and JIT user provisioning, and full OpenTelemetry
-tracing/Prometheus/Grafana metrics in local dev. Production is deployed on Render against
-Kroger's real Production API.
+recipe matching against pantry contents, real Kroger pricing and Google Places store lookups run
+in parallel with timeout/fallback handling, servings scaling, Auth0 login with role-based write
+access and JIT user provisioning, and full OpenTelemetry tracing/Prometheus/Grafana metrics in
+local dev. Production is deployed on Render against Kroger's real Production API.
 
 **Not built, and not pretending otherwise:**
 
@@ -279,8 +294,10 @@ Kroger's real Production API.
 - A deliberate on-call/incident-review simulation — alerting rules, fault injection, and a
   written postmortem were planned as a way to manufacture on-call experience solo, but weren't
   executed
-- Any downstream action on the `ingredient.missing` event — both consumers currently just log it
+- Any downstream action on the `ingredient.missing` event — the consumer currently just logs it
 - Unit conversion in the missing-ingredients diff — it compares quantities directly and assumes
   the pantry item's unit already matches the recipe's
 - Production observability — see [Production scope](#production-scope-what-ships-to-render) above
   for the honest tradeoff this represents
+- Ranked ingredient substitutions — built, verified, then removed; see
+  [Considered / removed](#considered--removed) above

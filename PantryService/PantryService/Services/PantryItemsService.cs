@@ -60,9 +60,9 @@ public class PantryItemsService(
         return new MissingIngredientsResponse(recipe.Id, recipe.Title, missing);
     }
 
-    // The decoupled event side-channel: consumers (Substitution, Sourcing) act on this
-    // asynchronously. A QStash outage must not break the synchronous response above, so
-    // publish failures are logged and swallowed rather than propagated.
+    // The decoupled event side-channel: the Sourcing consumer acts on this asynchronously. A
+    // QStash outage must not break the synchronous response above, so publish failures are
+    // logged and swallowed rather than propagated.
     private async Task PublishMissingIngredientEventsAsync(
         long userId, long recipeId, List<MissingIngredientResponse> missing)
     {

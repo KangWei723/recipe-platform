@@ -7,10 +7,9 @@ using Microsoft.Extensions.Options;
 
 namespace SourcingService.Controllers;
 
-// Consumer side of the decoupled ingredient.missing flow: QStash delivers here independently
-// of SubstitutionService's copy of the same event (see SubstitutionService.Controllers for that side).
-// QStash calls this directly (no user bearer token) and authenticates via its own
-// Upstash-Signature HMAC check below, so it's exempted from the platform-wide JWT requirement.
+// Consumer side of the decoupled ingredient.missing flow. QStash calls this directly (no user
+// bearer token) and authenticates via its own Upstash-Signature HMAC check below, so it's
+// exempted from the platform-wide JWT requirement.
 [ApiController]
 [AllowAnonymous]
 [Route("events")]

@@ -18,14 +18,12 @@ file is purely about getting a working local environment.
      ingredient create/edit/delete will 403
 2. **Postgres** (Neon or local) — a database reachable from RecipeService and PantryService; run
    each service's `init-db/*.sql` against it to create the schema.
-3. **Neo4j** (AuraDB or local) — no init script needed; SubstitutionService creates its own graph
-   shape at the schema level described in [`docs/design.md`](design.md#data-model).
-4. **Redis** — any reachable instance, for SourcingService's result cache.
-5. **Kroger Developer Portal** — register an app to get Certification-environment credentials
+3. **Redis** — any reachable instance, for SourcingService's result cache.
+4. **Kroger Developer Portal** — register an app to get Certification-environment credentials
    (Production credentials are a separate application-review process, only needed for a real
    deployment).
-6. **Google Cloud** — enable the Places API and generate an API key.
-7. **QStash** — either run the local dev server (`npx @upstash/qstash-cli dev`, or let
+5. **Google Cloud** — enable the Places API and generate an API key.
+6. **QStash** — either run the local dev server (`npx @upstash/qstash-cli dev`, or let
    `start-all.ps1` do it) for local testing, or create an Upstash QStash instance for a real
    deployment.
 
