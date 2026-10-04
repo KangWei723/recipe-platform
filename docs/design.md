@@ -73,17 +73,24 @@ behaves like one big database.
 
 ## API design
 
-- **External** — GraphQL gateway (HotChocolate), the web-client's single entry point:
+- **External** — mostly GraphQL (HotChocolate), the web-client's primary entry point, plus one
+  plain REST endpoint:
   - Queries: `recipe(id)`, `recipes`, `ingredients`, `units`, `ingredientCategories`,
     `pantryItems`, `recipeMatches(ingredientIds)`, `confirmedStoreOffer(ingredientName, lat, lng)`,
-    `nearbyStoresGeneral(lat, lng)`.
+    `nearbyStoresGeneral(lat, lng)`. A recipe's `tips`/`pairing` and each step's `imageUrl` ride
+    along on `recipe(id)`.
   - Mutations: `upsertPantryItem`, `removePantryItem`, and admin-only `createRecipe`,
-    `updateRecipe`, `deleteRecipe`, `createIngredient`, `updateIngredient`, `deleteIngredient`.
+    `updateRecipe`, `deleteRecipe`, `createIngredient`, `updateIngredient`, `deleteIngredient`
+    (the recipe mutations also carry `imageUrl`, `tips`, and `pairing`).
+  - `POST /api/images/upload` — plain REST, not GraphQL; see
+    [Image hosting](#image-hosting-pasted-url--cloudinary-upload--upload-only) for why.
   - None of the pantry or recipe-authoring operations take a caller/user id argument — identity
     always comes from the forwarded bearer token, never from a client-supplied value (see
     [Authentication and authorization](#authentication-and-authorization-for-real-users) below).
-- **Internal** — plain REST over `HttpClient` between Gateway and each backend service. gRPC was
-  the original plan; see [Internal service calls](#internal-service-calls-grpc-planned--rest).
+- **Internal** — plain REST over `HttpClient` between Gateway and each backend service
+  (RecipeService additionally exposes `POST /api/images`, the real upload/validation endpoint
+  Gateway's REST passthrough forwards to). gRPC was the original plan; see
+  [Internal service calls](#internal-service-calls-grpc-planned--rest).
 - **Events** — QStash webhook delivery, e.g. `ingredient.missing`; see
   [Event bus](#event-bus-kafka--qstash) below.
 
@@ -92,10 +99,10 @@ behaves like one big database.
 ### Relational core (Postgres, split by service ownership)
 
 - `users(id, email, name, auth0_sub, created_at)` — RecipeService
-- `recipes(id, author_id FK, title, description, servings, prep_time_min, cook_time_min, image_url, created_at)` — RecipeService
-- `recipe_steps(id, recipe_id FK, step_number, instruction, timer_seconds)` — RecipeService
-- `ingredients(id, name, category, default_unit)` — RecipeService (shared catalog; `category` and `default_unit` are validated against curated enums, not free text)
-- `recipe_ingredients(id, recipe_id FK, ingredient_id FK, quantity, unit, optional)` — RecipeService
+- `recipes(id, author_id FK, title, description, servings, prep_time_min, cook_time_min, image_url, tips, pairing, created_at)` — RecipeService. `tips` is a native Postgres `TEXT[]`, `NOT NULL DEFAULT ARRAY[]::text[]`; `pairing` and `image_url` are nullable `TEXT`/`VARCHAR(2048)`.
+- `recipe_steps(id, recipe_id FK, step_number, instruction, timer_seconds, image_url)` — RecipeService. `image_url` is nullable `VARCHAR(2048)`.
+- `ingredients(id, name, category, default_unit)` — RecipeService (shared catalog; `category` and `default_unit` are validated server-side against curated enums, not free text; the admin catalog UI shows a usage count per ingredient and the delete endpoint blocks — 409, not a raw constraint error — when that count is non-zero)
+- `recipe_ingredients(id, recipe_id FK, ingredient_id FK, quantity, unit, optional)` — RecipeService (`unit` is independent of the ingredient's `default_unit` — a recipe can call for an ingredient in a different unit than its catalog default, e.g. butter by weight in one recipe and by tablespoon in another)
 - `pantry_items(id, user_id FK, ingredient_id FK, updated_at)` — PantryService (presence-only: has the ingredient or doesn't, no quantity/unit/expiry tracking)
 - `stores(id, place_id, name, address, lat, lng)` — SourcingService (cached from Google Places)
 - `ingredient_prices(id, ingredient_id FK, store_id FK, price, currency, observed_at)` — SourcingService
@@ -158,7 +165,15 @@ config gap. Both are called out specifically in the README's technical highlight
 
 Once auth existed, a second pass added role-gated writes: recipe and ingredient
 create/update/delete now require an `admin` role claim, enforced at both the Gateway and
-RecipeService (see [System architecture](#system-architecture) above).
+RecipeService (see [System architecture](#system-architecture) above). Image upload is gated the
+same way, at both RecipeService's `/api/images` and Gateway's REST passthrough in front of it.
+
+Every other test for an `AdminOnly` endpoint in this codebase constructs the controller directly
+and calls the action method, which exercises the business logic but never the ASP.NET Core
+authorization middleware itself — a non-admin-rejection test for any of them didn't exist. The
+image-upload endpoint's test suite adds one that does: a `WebApplicationFactory`-based
+integration test with a fake authentication handler standing in for Auth0, asserting the real
+pipeline returns 403 without the admin claim and 200 with it.
 
 ### Kroger environment: Certification → Production
 
@@ -169,6 +184,32 @@ its own base URL and credentials — local dev defaults to Certification
 production credentials as environment variables. Verified end-to-end against the real
 `api.kroger.com` Production API: token refresh, location lookup, and product search all
 succeeded with real store and price data returned.
+
+### Sourcing: routing by capability, not by provider name
+
+SourcingService runs two different flows against the same provider list — a confirmed,
+per-ingredient price lookup (Kroger) and a general, ingredient-agnostic "nearby stores" locator
+(Google Places) — and needs to route each incoming request to the right subset of providers.
+That routing is driven by `IStoreProvider.IsIngredientSpecific`, a property every provider
+declares about itself, not a check for the literal string `"Kroger"`. Adding a second
+per-ingredient provider later means implementing the interface and setting the flag, not editing
+an `if` statement that enumerates provider names.
+
+The two flows also have deliberately different fallback behavior. The confirmed flow never falls
+back to simulated data — an empty result means "not found," and a guess dressed up as a real
+price would be worse than nothing. The general locator flow does fall back to a mock provider,
+but only when every real provider returns nothing; the response carries a flag distinguishing the
+two, and the web-client only ever presents a *confirmed* Kroger result as a real price, never the
+general locator's fallback data as if it were a known in-stock item at a known price.
+
+Two smaller decisions came out of actually wiring this into the recipe page. Kroger's API
+returns no product-page URL for a result (confirmed by inspecting a real captured response —
+only image asset URLs exist), so confirmed product names render as plain text; only the store
+name links out, to Google Maps, same as the rest of the app's store links. And since both the
+per-ingredient "Find it at Kroger" buttons and the general "Browse other nearby stores" button on
+the same page need the browser's location, a shared `useGeolocation` hook resolves it once per
+page view and reuses the result (or the in-flight request) for every caller, instead of prompting
+for permission once per click.
 
 ### CORS: permissive → allowlist
 
@@ -191,10 +232,110 @@ substitutions → check pantry → search stores → geocode. That flow doesn't 
 hand-rolled or orchestrated, so there was nothing yet to justify bringing in a workflow engine
 for. Recorded here as a deliberate scope decision rather than an oversight.
 
-### Image storage: S3 — planned, not built
+### Recipe content: tips, pairing, and per-step images
 
-Recipe images were planned to go through S3-compatible object storage. `recipes.image_url` is
-currently a plain string column with no upload pipeline behind it.
+Recipes gained three new fields: a short list of tips, an optional pairing suggestion, and an
+image per step (alongside the recipe's existing hero `image_url`). All of it is optional, and the
+detail page degrades deliberately rather than showing a gap: a step with no image renders as a
+plain text card, not an empty box or a broken-image icon; a recipe with no hero image falls back
+to the same hatch-pattern placeholder the recipe list already uses for a missing thumbnail,
+reused rather than duplicated; the tips and pairing sections simply don't render at all when
+empty.
+
+**Tips as a native array, not a join table.** `recipes.tips` is a Postgres `TEXT[]`, not a
+separate `recipe_tips(id, recipe_id, text, position)` table. A tip has no identity of its own —
+nothing references one by id, nothing needs to query "which recipes have this tip," and the form
+always edits and saves the entire list at once, the same full-replace semantics the form already
+uses for steps and ingredients. A join table buys referential structure for data that doesn't
+have any; an array column holds an ordered list directly, with no join and no extra table to
+keep in sync. Server-side limits (10 tips max, 300 characters per tip, 500 for the pairing note)
+are enforced in application code, not database constraints — they exist to stop unreasonably
+large input, not to express a real data invariant.
+
+**A real bug, caught by a real user, not by the test suite.** The migration that added `tips`
+shipped it as a bare nullable column (`ALTER TABLE recipes ADD COLUMN tips TEXT[]`), while the
+EF model declared the mapped property as a non-nullable `List<string>`. Every existing row's
+`tips` was `NULL`. The repository tests all passed, because every one of them creates a recipe
+through the EF model, which always supplies a non-null list — none of them exercised a row that
+already existed before the column did. The gap only showed up against the live database, as
+"Column 'tips' is null" when loading the recipe list. The fix had three parts: backfill existing
+`NULL` rows to `'{}'`, add `DEFAULT ARRAY[]::text[]` and `NOT NULL` to the column so no future row
+can repeat the problem, and a new repository test that inserts a row via raw SQL with the `tips`
+column omitted — deliberately bypassing the EF model that every other test goes through — to
+prove a row created by anything other than this application still loads correctly. The general
+lesson carried forward: this project has no EF Core migrations, so a raw SQL migration file
+(`init-db/*.sql`) and the EF model that describes the same table are two independently-maintained
+descriptions of the same schema, kept in sync by hand rather than generated from one source of
+truth — and a passing test suite that only ever writes data through the application can't catch
+the two falling out of sync, since every row it ever creates necessarily matches the model it
+was created with.
+
+### Image hosting: pasted URL → Cloudinary upload → upload-only
+
+Recipe images went through three stages. First, `image_url` fields accepted any `https://` URL,
+validated only for scheme and length — someone else's hosting, pasted in by hand. Then real
+upload shipped: an admin picks a file, RecipeService validates and pushes it to Cloudinary, and
+the resulting URL is what gets stored — the URL-entry field stayed as a fallback alongside it.
+Finally, URL entry was removed entirely; the hero and step image fields are upload-only, read-only
+otherwise (a thumbnail and a label, never the raw URL).
+
+**Validation is server-side and checks actual bytes, not metadata.** RecipeService verifies file
+type from the first bytes of the upload (JPEG/PNG/WebP signatures), not the filename or the
+client-declared `Content-Type` — both of those can be set to anything by the caller; the magic
+bytes can't. A 5 MB size limit is enforced the same way, server-side, regardless of what the
+client already did. The web-client downscales a selected image client-side first (long edge to
+about 1600px, re-encoded as JPEG) purely so a multi-megabyte phone photo doesn't need to be
+rejected and re-picked — it's a convenience, not a security boundary; the server never trusts
+that a file arrived already downscaled.
+
+**Gateway exposes a plain REST endpoint (`POST /api/images/upload`), not a GraphQL mutation.**
+HotChocolate supports file upload via the GraphQL multipart-request spec, which would keep
+Gateway's GraphQL-only external surface literally true. But every other GraphQL resolver in this
+codebase is a thin translation layer forwarding to a backend's REST API over `HttpClient` — a
+GraphQL upload resolver would still end up doing that same REST forward to RecipeService
+underneath, so the GraphQL layer would add a new `Upload` scalar and (on the client) a multipart
+exchange urql doesn't ship by default, for no behavioral difference from exposing the REST
+forward directly. The REST endpoint is authorized with the same "clean error at the Gateway,
+real enforcement downstream" pattern as every admin-only GraphQL mutation.
+
+**A real .NET 8 behavior, found by running the endpoint, not by reading the docs.** The first
+version of the Gateway endpoint 500'd on every request with "contains anti-forgery metadata, but
+a middleware was not found." .NET 8 attaches antiforgery metadata to any endpoint that binds
+`IFormFile`/form data — regardless of whether `AddAntiforgery()` is registered anywhere in the
+app, which Gateway's `Program.cs` never does. The fix is `.DisableAntiforgery()` on the route,
+with a comment explaining why it's safe: antiforgery protects against a forged request riding an
+authenticated *cookie* session, and this endpoint is bearer-token authenticated — the same
+forwarded `Authorization` header every other Gateway call already uses — so there's no cookie
+session for a forged request to ride in the first place.
+
+**Removing an image clears the field, and nothing else.** The "Remove image" button only clears
+the recipe's `image_url` (or a step's) on the next save — it does not call Cloudinary to delete
+the asset, deliberately: the removal doesn't take effect until the form is saved, and an
+immediate delete would destroy the file even if the admin then cancels instead of saving. The
+known cost of that choice: a removed or replaced image's old file stays in Cloudinary
+indefinitely. Nothing in this codebase cleans it up — see [Current status](#current-status).
+
+**Optional restriction to Cloudinary's own cloud, off by default.** `ImageUrlValidator` can
+additionally require that a URL start with `https://res.cloudinary.com/{the configured cloud
+name}/` — rejecting both an unrelated host and a *different* Cloudinary account's URL
+specifically, not just anything that contains `cloudinary.com`. This is a
+`CloudinaryOptions.RestrictImageUrlsToOwnCloud` flag, **off by default**, so turning it on is a
+deliberate choice made after checking whether any already-stored recipe has an image from a
+different host (a recipe that does would fail validation on its next edit, not on read, until its
+image is replaced).
+
+### Servings scaling: client-side and deliberately simple
+
+The servings stepper on the recipe detail page scales every ingredient quantity by a plain ratio
+(`adjustedServings / recipe.servings`) computed and applied entirely in the web-client — no
+backend call, no AI, no per-ingredient scaling rules. That's a deliberate scope limit, not an
+oversight, and it has real consequences the UI doesn't hide: seasoning, leavening (baking soda,
+yeast), and similar quantities don't actually scale linearly in real cooking, and this does it
+anyway, the same as every other ingredient. Step instructions and cook/prep times are never
+adjusted at all — "simmer for 20 minutes" still reads 20 minutes at any serving count. A more
+correct version would need per-ingredient scaling behavior and is explicitly not planned; this is
+documented as a known limitation rather than fixed because it's a reasonable tradeoff for a
+recipe app's actual use case, not a bug.
 
 ### Production scope: what ships to Render
 
@@ -280,20 +421,28 @@ above didn't change, only the fact that nothing was populating it.
 
 ## Current status
 
-**Working today:** recipe browsing/creation/editing (admin-gated), pantry tracking, ranked
-recipe matching against pantry contents, real Kroger pricing and Google Places store lookups run
-in parallel with timeout/fallback handling, servings scaling, Auth0 login with role-based write
-access and JIT user provisioning, and full OpenTelemetry tracing/Prometheus/Grafana metrics in
-local dev. Production is deployed on Render against Kroger's real Production API.
+**Working today:** recipe browsing/creation/editing (admin-gated) with a hero image, per-step
+images, tips, and a pairing note; admin image upload to Cloudinary with server-side file-type and
+size validation; drag-to-reorder recipe steps, with each step's image moving with it; pantry
+tracking; ranked recipe matching against pantry contents; real Kroger pricing and Google Places
+store lookups run in parallel with timeout/fallback handling; client-side servings scaling; Auth0
+login with role-based write access and JIT user provisioning; and full OpenTelemetry
+tracing/Prometheus/Grafana metrics in local dev. Production is deployed on Render against
+Kroger's real Production API.
 
 **Not built, and not pretending otherwise:**
 
 - gRPC between services (see [above](#internal-service-calls-grpc-planned--rest))
 - Temporal workflow orchestration (see [above](#workflow-orchestration-temporal--evaluated-not-built))
-- S3-style recipe image storage (see [above](#image-storage-s3--planned-not-built))
 - A deliberate on-call/incident-review simulation — alerting rules, fault injection, and a
   written postmortem were planned as a way to manufacture on-call experience solo, but weren't
   executed
+- Cleanup for orphaned Cloudinary assets — a removed or replaced image's old file is never
+  deleted (see [Image hosting](#image-hosting-pasted-url--cloudinary-upload--upload-only) above)
+- Recipe drafts, cook history, and a shopping list generated from missing ingredients — none of
+  these exist; "missing ingredients" is computed on demand per recipe, not accumulated anywhere
+- Multi-language recipe content — titles, steps, tips, and pairing notes are single-language,
+  plain-text fields with no localization model
 - Any downstream action on the `ingredient.missing` event — the consumer currently just logs it
 - Unit conversion in the missing-ingredients diff — it compares quantities directly and assumes
   the pantry item's unit already matches the recipe's
