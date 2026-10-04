@@ -40,7 +40,7 @@ public class RecipeRepositoryTests : IAsyncLifetime
     public async Task AddAsync_PersistsRecipeWithStepsAndIngredients()
     {
         var user = new User { Email = "chef@example.com", Name = "Chef", CreatedAt = DateTimeOffset.UtcNow };
-        var flour = new Ingredient { Name = "Flour", DefaultUnit = "g" };
+        var flour = new Ingredient { Name = "Flour", DefaultUnit = "g", Category = "other" };
         _context.Users.Add(user);
         _context.Ingredients.Add(flour);
         await _context.SaveChangesAsync();
@@ -67,8 +67,8 @@ public class RecipeRepositoryTests : IAsyncLifetime
     public async Task UpdateAsync_ReplacesStepsAndIngredients_ReusingSameStepNumbers()
     {
         var user = new User { Email = "chef2@example.com", Name = "Chef", CreatedAt = DateTimeOffset.UtcNow };
-        var flour = new Ingredient { Name = "Flour2", DefaultUnit = "g" };
-        var yeast = new Ingredient { Name = "Yeast2", DefaultUnit = "g" };
+        var flour = new Ingredient { Name = "Flour2", DefaultUnit = "g", Category = "other" };
+        var yeast = new Ingredient { Name = "Yeast2", DefaultUnit = "g", Category = "other" };
         _context.Users.Add(user);
         _context.Ingredients.AddRange(flour, yeast);
         await _context.SaveChangesAsync();
@@ -121,7 +121,7 @@ public class RecipeRepositoryTests : IAsyncLifetime
     public async Task DeleteAsync_RemovesRecipeAndCascadesStepsAndIngredients()
     {
         var user = new User { Email = "chef3@example.com", Name = "Chef", CreatedAt = DateTimeOffset.UtcNow };
-        var flour = new Ingredient { Name = "Flour3", DefaultUnit = "g" };
+        var flour = new Ingredient { Name = "Flour3", DefaultUnit = "g", Category = "other" };
         _context.Users.Add(user);
         _context.Ingredients.Add(flour);
         await _context.SaveChangesAsync();

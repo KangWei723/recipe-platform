@@ -33,7 +33,7 @@ public class RecipesServiceTests
                     Optional = i.optional,
                     Unit = "g",
                     Quantity = 1,
-                    Ingredient = new Ingredient { Id = i.ingredientId, Name = $"Ingredient {i.ingredientId}" }
+                    Ingredient = new Ingredient { Id = i.ingredientId, Name = $"Ingredient {i.ingredientId}", Category = "other" }
                 })
                 .ToList()
         };

@@ -42,7 +42,7 @@ public class IngredientRepositoryTests : IAsyncLifetime
     public async Task CountRecipeUsagesAsync_ReturnsNumberOfRecipeIngredientRows()
     {
         var user = new User { Email = "chef@example.com", Name = "Chef", CreatedAt = DateTimeOffset.UtcNow };
-        var flour = new Ingredient { Name = "Flour", DefaultUnit = "g" };
+        var flour = new Ingredient { Name = "Flour", DefaultUnit = "g", Category = "other" };
         _context.Users.Add(user);
         _context.Ingredients.Add(flour);
         await _context.SaveChangesAsync();
@@ -73,9 +73,9 @@ public class IngredientRepositoryTests : IAsyncLifetime
     public async Task CountAllRecipeUsagesAsync_ReturnsCountsGroupedByIngredient()
     {
         var user = new User { Email = "chef3@example.com", Name = "Chef", CreatedAt = DateTimeOffset.UtcNow };
-        var flour = new Ingredient { Name = "Flour3", DefaultUnit = "g" };
-        var sugar = new Ingredient { Name = "Sugar3", DefaultUnit = "g" };
-        var unused = new Ingredient { Name = "Unused3", DefaultUnit = "g" };
+        var flour = new Ingredient { Name = "Flour3", DefaultUnit = "g", Category = "other" };
+        var sugar = new Ingredient { Name = "Sugar3", DefaultUnit = "g", Category = "other" };
+        var unused = new Ingredient { Name = "Unused3", DefaultUnit = "g", Category = "other" };
         _context.Users.Add(user);
         _context.Ingredients.AddRange(flour, sugar, unused);
         await _context.SaveChangesAsync();
@@ -111,7 +111,7 @@ public class IngredientRepositoryTests : IAsyncLifetime
     public async Task DeleteAsync_WhenReferencedByRecipeIngredient_ThrowsForeignKeyViolation()
     {
         var user = new User { Email = "chef2@example.com", Name = "Chef", CreatedAt = DateTimeOffset.UtcNow };
-        var flour = new Ingredient { Name = "Flour2", DefaultUnit = "g" };
+        var flour = new Ingredient { Name = "Flour2", DefaultUnit = "g", Category = "other" };
         _context.Users.Add(user);
         _context.Ingredients.Add(flour);
         await _context.SaveChangesAsync();
@@ -144,7 +144,7 @@ public class IngredientRepositoryTests : IAsyncLifetime
     [Fact]
     public async Task DeleteAsync_WhenUnreferenced_Succeeds()
     {
-        var ingredient = new Ingredient { Name = "Unused", DefaultUnit = "g" };
+        var ingredient = new Ingredient { Name = "Unused", DefaultUnit = "g", Category = "other" };
         _context.Ingredients.Add(ingredient);
         await _context.SaveChangesAsync();
 

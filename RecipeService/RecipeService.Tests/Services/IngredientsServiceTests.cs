@@ -71,7 +71,7 @@ public class IngredientsServiceTests
             .Setup(r => r.UpdateAsync(1, It.IsAny<Action<Ingredient>>()))
             .ReturnsAsync((long _, Action<Ingredient> apply) =>
             {
-                var ingredient = new Ingredient { Id = 1, Name = "Old", DefaultUnit = "g" };
+                var ingredient = new Ingredient { Id = 1, Name = "Old", DefaultUnit = "g", Category = "other" };
                 apply(ingredient);
                 return ingredient;
             });
@@ -99,8 +99,8 @@ public class IngredientsServiceTests
     {
         _repository.Setup(r => r.GetAllAsync()).ReturnsAsync(
         [
-            new Ingredient { Id = 1, Name = "Flour", DefaultUnit = "g" },
-            new Ingredient { Id = 2, Name = "Unused Spice", DefaultUnit = "tsp" }
+            new Ingredient { Id = 1, Name = "Flour", DefaultUnit = "g", Category = "baking_flour" },
+            new Ingredient { Id = 2, Name = "Unused Spice", DefaultUnit = "tsp", Category = "spices_seasonings" }
         ]);
         _repository.Setup(r => r.CountAllRecipeUsagesAsync()).ReturnsAsync(new Dictionary<long, int> { [1] = 5 });
 
